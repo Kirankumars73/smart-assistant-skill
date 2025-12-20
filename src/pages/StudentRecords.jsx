@@ -14,7 +14,7 @@ const StudentRecords = () => {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
- [filterSemester, setFilterSemester] = useState('all');
+  const [filterSemester, setFilterSemester] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);

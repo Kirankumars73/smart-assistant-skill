@@ -13,6 +13,7 @@ const AdminPanel = () => {
   const [updating, setUpdating] = useState(null);
   const [filter, setFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     if (isAdmin()) {
@@ -23,6 +24,7 @@ const AdminPanel = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
+      setError(null);
       const usersCollection = collection(db, 'users');
       const usersSnapshot = await getDocs(usersCollection);
       const usersList = usersSnapshot.docs.map(doc => ({
@@ -40,6 +42,7 @@ const AdminPanel = () => {
       setUsers(usersList);
     } catch (error) {
       console.error('Error fetching users:', error);
+      setError(`Failed to fetch users: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -199,6 +202,25 @@ const AdminPanel = () => {
             </div>
           </div>
         </Card>
+
+        {/* Error Display */}
+        {error && (
+          <Card className="mb-6 bg-red-500/10 border-red-500/50">
+            <div className="flex items-start gap-3">
+              <div className="text-2xl">⚠️</div>
+              <div className="flex-1">
+                <h3 className="font-bold text-red-400 mb-1">Connection Error</h3>
+                <p className="text-sm text-red-300">{error}</p>
+                <button
+                  onClick={fetchUsers}
+                  className="mt-3 px-4 py-2 bg-red-500 hover:bg-red-600 rounded-lg font-semibold transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {/* User List */}
         {loading ? (

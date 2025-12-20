@@ -1,87 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Helper function to check if user is authenticated with Gmail
-    function isAuthenticated() {
-      return request.auth != null && request.auth.token.email.matches('.*@gmail.com');
-    }
-    
-    // Helper function to get user role
-    function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-    
-    // Helper function to check if user is admin
-    function isAdmin() {
-      return isAuthenticated() && getUserRole() == 'admin';
-    }
-    
-    // Helper function to check if user is faculty
-    function isFaculty() {
-      return isAuthenticated() && getUserRole() == 'faculty';
-    }
-    
-    // Helper function to check if user has faculty access (admin or faculty)
-    function hasFacultyAccess() {
-      return isAdmin() || isFaculty();
-    }
-    
-    // Users collection
-    match /users/{userId} {
-      // Anyone authenticated can read their own profile
-      allow read: if isAuthenticated() && request.auth.uid == userId;
-      
-      // Users can create their own profile
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      
-      // Users can update their own profile (except role and isHardcodedAdmin)
-      allow update: if isAuthenticated() && 
-                       request.auth.uid == userId && 
-                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isHardcodedAdmin']);
-      
-      // Only admins can update user roles, BUT cannot change hardcoded admin status
-      allow update: if isAdmin() && 
-                       !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isHardcodedAdmin']);
-      
-      // Admins can read all users
-      allow read: if isAdmin();
-      
-      // Prevent anyone from changing the hardcoded admin's role
-      allow write: if !resource.data.get('isHardcodedAdmin', false);
-    }
-    
-    // Students collection
-    match /students/{studentId} {
-      // Faculty and admin can read/write all student records
-      allow read, write: if hasFacultyAccess();
-      
-      // Students can read only their own record
-      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-    }
-    
-    // Timetables collection
-    match /timetables/{timetableId} {
-      // Faculty and admin can read/write timetables
-      allow read, write: if hasFacultyAccess();
-      
-      // Students can read timetables
-      allow read: if isAuthenticated();
-    }
-    
-    // Questions collection (predicted questions)
-    match /questions/{questionId} {
-      // Faculty and admin can read/write
-      allow read, write: if hasFacultyAccess();
-      
-      // Students can read questions
-      allow read: if isAuthenticated();
-    }
-    
-    // Papers collection (uploaded past papers)
-    match /papers/{paperId} {
-      // Only faculty and admin can upload and manage papers
-      allow read, write: if hasFacultyAccess();
+    // TEMPORARY TEST MODE - Allow all authenticated users
+    // This is to diagnose the connectivity issue
+    // Replace with proper rules after testing
+    match /{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }

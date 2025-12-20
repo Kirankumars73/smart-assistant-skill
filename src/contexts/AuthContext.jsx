@@ -137,20 +137,44 @@ export const AuthProvider = ({ children }) => {
   const hasFacultyAccess = () => isAdmin() || isFaculty();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && isGmailAccount(user.email)) {
         setCurrentUser(user);
-        const role = await fetchUserRole(user);
-        setUserRole(role);
+        
+        // Hardcoded admin email - check FIRST before fetching from Firestore
+        const ADMIN_EMAIL = 'kirankumar07112003@gmail.com';
+        const isHardcodedAdmin = user.email === ADMIN_EMAIL;
+        
+        // If this is the hardcoded admin, set role immediately
+        if (isHardcodedAdmin) {
+          setUserRole('admin');
+          // Create/update profile in background (non-blocking)
+          createUserProfile(user).catch(err => 
+            console.error('Error creating user profile:', err)
+          );
+        } else {
+          // For other users, set default role first, then update from Firestore
+          setUserRole(USER_ROLES.STUDENT); // Default
+          
+          // Try to create profile and fetch role in background (non-blocking)
+          createUserProfile(user)
+            .then(() => fetchUserRole(user))
+            .then(role => setUserRole(role))
+            .catch(err => console.error('Error creating user profile:', err));
+        }
+        
+        // Set loading=false immediately - don't wait for Firestore
+        setLoading(false);
       } else {
         setCurrentUser(null);
         setUserRole(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
     return unsubscribe;
   }, []);
+
 
   const value = {
     currentUser,
@@ -168,7 +192,7 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

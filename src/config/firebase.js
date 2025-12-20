@@ -1,28 +1,34 @@
 // Firebase Configuration
-// TODO: Replace with your Firebase project credentials from Firebase Console
-// Get these from: Firebase Console > Project Settings > General > Your apps > SDK setup and configuration
+// Environment variables are loaded from .env.local (development) or deployment config (production)
 
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBboGxCfkg8ft6yj-mhNYEpOWalkgz3X4Y",
-  authDomain: "smart-academic-assistant.firebaseapp.com",
-  projectId: "smart-academic-assistant",
-  storageBucket: "smart-academic-assistant.firebasestorage.app",
-  messagingSenderId: "979256832186",
-  appId: "1:979256832186:web:e68835702d41dad0eb9283",
-  measurementId: "G-FV5E1JR6Y0"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
+
 // Initialize Firebase services
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Initialize Firestore with long polling (more reliable than WebSockets)
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+  experimentalAutoDetectLongPolling: false,
+});
+
 export const functions = getFunctions(app);
 
 // Configure Google Auth Provider for Gmail-only authentication
