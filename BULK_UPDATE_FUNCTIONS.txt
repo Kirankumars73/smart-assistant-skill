@@ -1,0 +1,140 @@
+// Bulk Update Marks Functions - to be added to StudentRecords.jsx after importStudentsToFirestore
+
+  // Download marks update template (to be used end of semester)
+  const downloadMarksTemplate = async() => {
+    // Get current students to generate template with their subjects
+    const studentsRef = collection(db, 'students');
+    const studentsSnapshot = await getDocs(studentsRef);
+    
+    const templat eData = [];
+    studentsSnapshot.docs.forEach(doc => {
+      const student = doc.data();
+      if (student.subjects && student.subjects.length > 0) {
+        const row = {
+          'Student ID': student.studentId,
+          'Name': student.name,
+          'Branch': student.branch,
+          'Semester': student.semester
+        };
+        
+        // Add columns for each subject
+        student.subjects.forEach((subject, index) => {
+          row[`Subject${index + 1}_Name`] = subject.name;
+          row[`Subject${index + 1}_Type`] = subject.type;
+          row[`Subject${index + 1}_Marks`] = subject.internalMarks || ''; // Blank if not graded
+        });
+        
+        templateData.push(row);
+      }
+    });
+    
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Marks Update');
+    XLSX.writeFile(workbook, 'student_marks_update_template.xlsx');
+  };
+
+  // Bulk update marks for existing students
+  const bulkUpdateMarks = async () => {
+    if (!validationResults || validationResults.valid.length === 0) {
+      alert('No valid data to update');
+      return;
+    }
+
+    if (!hasFacultyAccess()) {
+      alert('You do not have permission to update student records.');
+      return;
+    }
+
+    setImporting(true);
+    setImportProgress(0);
+
+    try {
+      let updatedCount = 0;
+      let notFoundCount = 0;
+      let failedCount = 0;
+
+      for (const row of validationResults.valid) {
+        try {
+          // Find student by ID
+          const studentsRef = collection(db, 'students');
+          const q = query(studentsRef, where('studentId', '==', row.studentId));
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            const studentDoc = querySnapshot.docs[0];
+            const existingStudent = studentDoc.data();
+            
+            // Parse subjects from Excel row
+            const updatedSubjects = [];
+            for (let i = 1; i <= 20; i++) {  // Support up to 20 subjects
+              const subjectName = row[`subject${i}_name`];
+              if (subjectName) {
+                // Find matching subject in existing student data
+                const existingSubject = existingStudent.subjects?.find(s => 
+                  s.name.toLowerCase().trim() === subjectName.toLowerCase().trim()
+                );
+                
+                if (existingSubject) {
+                  // Update marks for existing subject
+                  updatedSubjects.push({
+                    ...existingSubject,
+                    internalMarks: row[`subject${i}_marks`] ? parseFloat(row[`subject${i}_marks`]) : existingSubject.internalMarks
+                  });
+                } else {
+                  // New subject - add it
+                  updatedSubjects.push({
+                    id: `sub_${Date.now()}_${i}`,
+                    name: subjectName,
+                    type: row[`subject${i}_type`] || 'theory',
+                    internalMarks: row[`subject${i}_marks`] ? parseFloat(row[`subject${i}_marks`]) : '',
+                    credits: ''
+                  });
+                }
+              }
+            }
+            
+            //  Update student with new marks
+            const studentRef = doc(db, 'students', studentDoc.id);
+            await updateDoc(studentRef, {
+              subjects: updatedSubjects.length > 0 ? updatedSubjects : existingStudent.subjects,
+              updatedAt: new Date().toISOString()
+            });
+            
+            updatedCount++;
+          } else {
+            notFoundCount++;
+          }
+        } catch (error) {
+          console.error(`Error updating student ${row.studentId}:`, error);
+          failedCount++;
+        }
+        
+        setImportProgress(Math.round(((updatedCount + notFoundCount + failedCount) / validationResults.valid.length) * 100));
+      }
+
+      alert(`✅ Successfully updated ${updatedCount} student(s)!` + 
+            (notFoundCount > 0 ? `\\n⚠️ ${notFoundCount} student ID(s) not found.` : '') +
+            (failedCount > 0 ? `\\n❌ ${failedCount} failed to update.` : ''));
+      
+      fetchStudents();
+      closeBulkImportModal();
+    } catch (error) {
+      console.error('Bulk update error:', error);
+      alert('Failed to update marks: ' + error.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  // Close bulk import modal and reset (UPDATE THIS)
+  const closeBulkImportModal = () => {
+    setBulkImportModalOpen(false);
+    setBulkUpdateMode(false);  // Reset update mode
+    setUploadedFile(null);
+    setParsedData([]);
+    setValidationResults(null);
+    setImportProgress(0);
+    setImporting(false);
+    setIsDragging(false);
+  };

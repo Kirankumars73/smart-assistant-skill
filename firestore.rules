@@ -1,11 +1,125 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // TEMPORARY TEST MODE - Allow all authenticated users
-    // This is to diagnose the connectivity issue
-    // Replace with proper rules after testing
+    
+    // ============= HELPER FUNCTIONS =============
+    
+    // Check if user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Check if user email is Gmail (required for this app)
+    function isGmail() {
+      return isSignedIn() && request.auth.token.email.matches('.*@gmail.com$');
+    }
+    
+    // Get user's role from users collection
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    // Check if user is admin
+    function isAdmin() {
+      return isSignedIn() && getUserRole() == 'admin';
+    }
+    
+    // Check if user is faculty
+    function isFaculty() {
+      return isSignedIn() && getUserRole() == 'faculty';
+    }
+    
+    // Check if user is student
+    function isStudent() {
+      return isSignedIn() && getUserRole() == 'student';
+    }
+    
+    // Check if user has faculty-level access (admin or faculty)
+    function hasFacultyAccess() {
+      return isAdmin() || isFaculty();
+    }
+    
+    // Check if a user document is the hardcoded admin
+    function isHardcodedAdmin(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.isHardcodedAdmin == true;
+    }
+    
+    // ============= COLLECTION RULES =============
+    
+    // USERS COLLECTION
+    match /users/{userId} {
+      // Allow creating user document on first sign-in (Gmail only)
+      allow create: if isGmail() && request.auth.uid == userId;
+      
+      // Allow reading own profile or if admin
+      allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      
+      // Allow updating own profile (except role and isHardcodedAdmin fields)
+      // OR admin can update any user (except hardcoded admin's role)
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId && 
+         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'isHardcodedAdmin']))
+        || 
+        (isAdmin() && !isHardcodedAdmin(userId))
+      );
+      
+      // Only admin can delete users (except hardcoded admin)
+      allow delete: if isAdmin() && !isHardcodedAdmin(userId);
+    }
+    
+    // STUDENTS COLLECTION
+    match /students/{studentId} {
+      // Faculty/Admin can create student records
+      allow create: if hasFacultyAccess();
+      
+      // Faculty/Admin can read all records
+      // Students can read their own record (matching studentId field)
+      allow read: if hasFacultyAccess() || 
+                     (isStudent() && 
+                      get(/databases/$(database)/documents/students/$(studentId)).data.studentId == 
+                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.studentId);
+      
+      // Only Faculty/Admin can update student records
+      allow update: if hasFacultyAccess();
+      
+      // Only Faculty/Admin can delete student records
+      allow delete: if hasFacultyAccess();
+    }
+    
+    // TIMETABLES COLLECTION
+    match /timetables/{timetableId} {
+      // Faculty/Admin can create timetables
+      allow create: if hasFacultyAccess();
+      
+      // All authenticated Gmail users can read timetables
+      allow read: if isGmail();
+      
+      // Only Faculty/Admin can update timetables
+      allow update: if hasFacultyAccess();
+      
+      // Only Admin can delete timetables
+      allow delete: if isAdmin();
+    }
+    
+    // QUESTIONS COLLECTION
+    match /questions/{questionId} {
+      // Faculty/Admin can create question records
+      allow create: if hasFacultyAccess();
+      
+      // All authenticated Gmail users can read questions
+      allow read: if isGmail();
+      
+      // Only Faculty/Admin can update questions
+      allow update: if hasFacultyAccess();
+      
+      // Only Faculty/Admin can delete questions
+      allow delete: if hasFacultyAccess();
+    }
+    
+    // DENY ALL OTHER COLLECTIONS
+    // Any collection not explicitly defined above is denied
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read, write: if false;
     }
   }
 }
