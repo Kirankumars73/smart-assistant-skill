@@ -1633,27 +1633,29 @@ const TimetableGenerator = () => {
                 </motion.div>
               </AnimatePresence>
               
-              {/* Navigation Buttons */}
-              <div className="flex justify-between mt-8 pt-6 border-t border-gray-700">
-                <GradientButton
-                  onClick={prevStep}
-                  disabled={currentStep === 1}
-                  variant="secondary"
-                >
-                  ← Previous
-                </GradientButton>
-                
-                <span className="text-gray-400">
-                  Step {currentStep} of {totalSteps}
-                </span>
-                
-                <GradientButton
-                  onClick={nextStep}
-                  disabled={currentStep === totalSteps}
-                >
-                  Next →
-                </GradientButton>
-              </div>
+              {/* Navigation Buttons - Hidden when viewing saved timetable */}
+              {!selectedTimetable && (
+                <div className="flex justify-between mt-8 pt-6 border-t border-gray-700">
+                  <GradientButton
+                    onClick={prevStep}
+                    disabled={currentStep === 1}
+                    variant="secondary"
+                  >
+                    ← Previous
+                  </GradientButton>
+                  
+                  <span className="text-gray-400">
+                    Step {currentStep} of {totalSteps}
+                  </span>
+                  
+                  <GradientButton
+                    onClick={nextStep}
+                    disabled={currentStep === totalSteps}
+                  >
+                    Next →
+                  </GradientButton>
+                </div>
+              )}
             </Card>
           )}
         </div>
