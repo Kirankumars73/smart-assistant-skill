@@ -26,12 +26,12 @@ export const exportFacultyTimetablesToPDF = async (facultyTimetables, config, lo
     const tableData = prepareTimetableData(timetable, config.rows, config.cols);
     
     // Add table
-    doc.autoTable({
+    autoTable(doc, {
       startY: 25,
       head: [tableData.headers],
       body: tableData.rows,
       theme: 'grid',
-      headStyles: { fillColor: [139, 0, 139], textColor: 255, fontStyle: 'bold' },
+      headStyles: { fillColor: [139,0, 139], textColor: 255, fontStyle: 'bold' },
       styles: { fontSize: 9, cellPadding: 3 },
       columnStyles: {
         0: { fillColor: [240, 240, 240], fontStyle: 'bold' }
