@@ -1455,6 +1455,23 @@ const TimetableGenerator = () => {
     </div>
   );
   
+  // Check for faculty/admin access
+  if (userRole !== 'faculty' && userRole !== 'admin') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900">
+        <Navbar />
+        <div className="container mx-auto px-4 py-16">
+          <Card className="max-w-md mx-auto text-center">
+            <div className="text-6xl mb-4">🔒</div>
+            <h2 className="text-2xl font-bold mb-4">Access Restricted</h2>
+            <p className="text-gray-400">
+              Only faculty and administrators can access the timetable generator.
+            </p>
+          </Card>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="min-h-screen bg-black">
