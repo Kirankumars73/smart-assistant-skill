@@ -1504,7 +1504,7 @@ const TimetableGenerator = () => {
             >
               📋 Browse Timetables
             </GradientButton>
-            {hasFacultyAccess() && (
+            {(userRole === 'faculty' || userRole === 'admin') && (
               <GradientButton
                 onClick={startNewTimetable}
                 variant={viewMode === 'create' ? 'primary' : 'secondary'}
@@ -1587,7 +1587,7 @@ const TimetableGenerator = () => {
                           >
                             👁️ View
                           </GradientButton>
-                          {hasFacultyAccess() && (
+                          {(userRole === 'faculty' || userRole === 'admin') && (
                             <>
                               <GradientButton
                                 onClick={() => loadTimetableForEdit(timetable)}
@@ -1612,12 +1612,14 @@ const TimetableGenerator = () => {
                         <div className="mt-4 pt-4 border-t border-gray-700">
                           <p className="text-sm text-gray-400 mb-2">Classes:</p>
                           <div className="flex flex-wrap gap-2">
-                            {timetable.classes.map((className, index) => (
+                            {timetable.classes.map((classItem, index) => (
                               <span
                                 key={index}
                                 className="px-3 py-1 bg-gray-900 rounded-full text-sm text-white"
                               >
-                                {className}
+                                {typeof classItem === 'string' ? classItem : classItem.name}
+                              </span>
+                            ))}
                               </span>
                             ))}
                           </div>
