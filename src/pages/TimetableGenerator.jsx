@@ -139,7 +139,21 @@ const TimetableGenerator = () => {
     setAssignments(timetable.assignments || []);
     setManualAssignments(timetable.manualAssignments || []);
     
-    if (timetable.facultyTimetables && timetable.classTimetables) {
+    // Deserialize timetables if they exist
+    if (timetable.timetables) {
+      const { facultyTimetables, classTimetables } = deserializeTimetables(
+        timetable.timetables,
+        timetable.rows || 5,
+        timetable.cols || 6
+      );
+      
+      setGeneratedTimetable({
+        success: true,
+        facultyTimetables,
+        classTimetables
+      });
+    } else if (timetable.facultyTimetables && timetable.classTimetables) {
+      // Legacy support for old format (if any exist)
       setGeneratedTimetable({
         success: true,
         facultyTimetables: timetable.facultyTimetables,
@@ -181,6 +195,12 @@ const TimetableGenerator = () => {
     }
     
     try {
+      // Serialize timetables to avoid nested arrays
+      const serializedTimetables = serializeTimetables(
+        generatedTimetable.facultyTimetables,
+        generatedTimetable.classTimetables
+      );
+      
       const timetableData = {
         ...config,
         updatedAt: new Date().toISOString(),
@@ -191,8 +211,7 @@ const TimetableGenerator = () => {
         subjects,
         assignments,
         manualAssignments,
-        facultyTimetables: generatedTimetable.facultyTimetables,
-        classTimetables: generatedTimetable.classTimetables
+        timetables: serializedTimetables // Store serialized version
       };
       
       await updateDoc(doc(db, 'timetables', selectedTimetable.id), timetableData);
@@ -417,6 +436,53 @@ const TimetableGenerator = () => {
     }
   };
   
+  // Helper: Convert 2D array to Firestore-compatible format (flat array with metadata)
+  const serializeTimetables = (facultyTimetables, classTimetables) => {
+    const serialized = {};
+    
+    // Serialize faculty timetables
+    for (const [name, grid] of Object.entries(facultyTimetables)) {
+      serialized[`faculty_${name}`] = {
+        name,
+        type: 'faculty',
+        grid: grid.flat() // Flatten 2D array to 1D
+      };
+    }
+    
+    // Serialize class timetables
+    for (const [name, grid] of Object.entries(classTimetables)) {
+      serialized[`class_${name}`] = {
+        name,
+        type: 'class',
+        grid: grid.flat() // Flatten 2D array to 1D
+      };
+    }
+    
+    return serialized;
+  };
+  
+  // Helper: Convert serialized data back to 2D arrays
+  const deserializeTimetables = (serialized, rows, cols) => {
+    const facultyTimetables = {};
+    const classTimetables = {};
+    
+    for (const [key, data] of Object.entries(serialized)) {
+      // Reconstruct 2D array from flat array
+      const grid = [];
+      for (let i = 0; i < rows; i++) {
+        grid.push(data.grid.slice(i * cols, (i + 1) * cols));
+      }
+      
+      if (data.type === 'faculty') {
+        facultyTimetables[data.name] = grid;
+      } else if (data.type === 'class') {
+        classTimetables[data.name] = grid;
+      }
+    }
+    
+    return { facultyTimetables, classTimetables };
+  };
+  
   // Save to Firestore
   const saveTimetable = async () => {
     if (!generatedTimetable) {
@@ -425,6 +491,12 @@ const TimetableGenerator = () => {
     }
     
     try {
+      // Serialize timetables to avoid nested arrays
+      const serializedTimetables = serializeTimetables(
+        generatedTimetable.facultyTimetables,
+        generatedTimetable.classTimetables
+      );
+      
       const timetableData = {
         ...config,
         createdAt: new Date().toISOString(),
@@ -435,8 +507,7 @@ const TimetableGenerator = () => {
         subjects,
         assignments,
         manualAssignments,
-        facultyTimetables: generatedTimetable.facultyTimetables,
-        classTimetables: generatedTimetable.classTimetables
+        timetables: serializedTimetables // Store serialized version
       };
       
       await addDoc(collection(db, 'timetables'), timetableData);
