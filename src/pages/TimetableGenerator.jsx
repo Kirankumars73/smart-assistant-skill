@@ -875,7 +875,7 @@ const TimetableGenerator = () => {
         <GradientButton 
           onClick={addClass} 
           className="w-full"
-          disabled={!newClass.trim() || currentClassSubjects.length === 0}
+          disabled={!newClass.name || !newClass.department || !newClass.semester || !newClass.scheme || !newClass.academicYear || currentClassSubjects.length === 0}
         >
           ✅ Add Class with {currentClassSubjects.length} Subject(s)
         </GradientButton>
