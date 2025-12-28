@@ -790,19 +790,12 @@ const TimetableGenerator = () => {
             </select>
           </div>
           
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Scheme *</label>
-            <select
-              value={newClass.scheme}
-              onChange={(e) => setNewClass(prev => ({ ...prev, scheme: e.target.value }))}
-              className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-            >
-              <option value="">Select Scheme</option>
-              <option value="2018">2018 Scheme</option>
-              <option value="2022">2022 Scheme</option>
-              <option value="2024">2024 Scheme</option>
-            </select>
-          </div>
+          <Input
+            label="Scheme *"
+            placeholder="e.g., 2019 2024, 2018, 2022"
+            value={newClass.scheme}
+            onChange={(e) => setNewClass(prev => ({ ...prev, scheme: e.target.value }))}
+          />
           
           <Input
             label="Academic Year *"
