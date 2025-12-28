@@ -23,7 +23,7 @@ const TimetableGenerator = () => {
   
   // Wizard step management
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 7;
+  const totalSteps = 6; // Reduced from 7: removed global subjects step
   
   // Configuration state
   const [config, setConfig] = useState({
@@ -39,11 +39,14 @@ const TimetableGenerator = () => {
   const [faculties, setFaculties] = useState([]);
   const [newFaculty, setNewFaculty] = useState('');
   
-  // Class management
-  const [classes, setClasses] = useState([]);
+  // Class management - each class now has its own subjects
+  const [classes, setClasses] = useState([]); // Array of {name, subjects: [{name, type}]}
   const [newClass, setNewClass] = useState('');
+  const [currentClassSubjects, setCurrentClassSubjects] = useState([]);
+  const [newSubjectForClass, setNewSubjectForClass] = useState({ name: '', type: 'theory' });
   
-  // Subject management
+  // Subject management - deprecated, subjects now stored per class
+  // Kept for backward compatibility with old saved timetables
   const [subjects, setSubjects] = useState([]);
   const [newSubject, setNewSubject] = useState({ name: '', type: 'theory' });
   
@@ -263,11 +266,29 @@ const TimetableGenerator = () => {
     setFaculties(prev => prev.filter((_, i) => i !== index));
   };
   
-  // Step 3: Class Management
+  // Step 3: Class Management with subjects
+  const addSubjectToCurrentClass = () => {
+    if (newSubjectForClass.name.trim()) {
+      setCurrentClassSubjects(prev => [...prev, { ...newSubjectForClass, name: newSubjectForClass.name.trim() }]);
+      setNewSubjectForClass({ name: '', type: 'theory' });
+    }
+  };
+  
+  const removeSubjectFromCurrentClass = (index) => {
+    setCurrentClassSubjects(prev => prev.filter((_, i) => i !== index));
+  };
+  
   const addClass = () => {
-    if (newClass.trim()) {
-      setClasses(prev => [...prev, newClass.trim()]);
+    if (newClass.trim() && currentClassSubjects.length > 0) {
+      const classData = {
+        name: newClass.trim(),
+        subjects: [...currentClassSubjects]
+      };
+      setClasses(prev => [...prev, classData]);
       setNewClass('');
+      setCurrentClassSubjects([]);
+    } else if (newClass.trim() && currentClassSubjects.length === 0) {
+      alert('Please add at least one subject for this class');
     }
   };
   
@@ -275,7 +296,10 @@ const TimetableGenerator = () => {
     setClasses(prev => prev.filter((_, i) => i !== index));
   };
   
-  // Step 4: Subject Management
+  // Step 4: Subject Management - DEPRECATED, skip to assignments
+  // Users now add subjects per-class in Step 3
+  
+  // Step 5 (formerly Step 5): Assignment Configuration
   const addSubject = () => {
     if (newSubject.name.trim()) {
       setSubjects(prev => [...prev, { ...newSubject, name: newSubject.name.trim() }]);
@@ -339,11 +363,25 @@ const TimetableGenerator = () => {
     setManualAssignments(prev => prev.filter(a => a.id !== id));
   };
   
-  // Step 7: Generate Timetable
+  // Step 7 (formerly Step 6): Generate Timetable
   const generateTimetable = async () => {
     setIsGenerating(true);
     
     try {
+      // Extract all subjects from classes for the algorithm
+      const allSubjects = [];
+      classes.forEach(classData => {
+        classData.subjects.forEach(subject => {
+          // Add subject if not already in list
+          if (!allSubjects.find(s => s.name === subject.name && s.type === subject.type)) {
+            allSubjects.push(subject);
+          }
+        });
+      });
+      
+      // Extract class names only
+      const classNames = classes.map(c => c.name);
+      
       // Validate configuration
       const validation = validateConfiguration({
         rows: config.rows,
@@ -368,7 +406,7 @@ const TimetableGenerator = () => {
       }
       
       // Add classes
-      for (const className of classes) {
+      for (const className of classNames) {
         TimetableService.addClass(className);
       }
       
@@ -728,41 +766,131 @@ const TimetableGenerator = () => {
   
   const renderStep3 = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold mb-6">Step 3: Add Classes</h2>
+      <h2 className="text-2xl font-bold mb-6">Step 3: Add Classes & Their Subjects</h2>
+      <p className="text-gray-400 mb-4">Add each class along with its specific subjects. This makes it easier to manage different courses.</p>
       
-      <div className="flex gap-4">
+      {/* Add New Class Form */}
+      <div className="bg-gray-800 p-6 rounded-lg space-y-4">
+        <h3 className="text-lg font-semibold mb-3">Add New Class</h3>
+        
         <Input
-          label="Class Name"
+          label="Class Name *"
           placeholder="e.g., CSE-5A, ECE-3B"
           value={newClass}
           onChange={(e) => setNewClass(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && addClass()}
         />
-        <GradientButton onClick={addClass} className="self-end">
-          Add Class
+        
+        {/* Subject Input for Current Class */}
+        <div className="mt-4">
+          <label className="block text-sm font-medium text-gray-300 mb-3">
+            Subjects for {newClass || 'this class'}
+          </label>
+          
+          <div className="flex gap-4 mb-3">
+            <Input
+              label=""
+              placeholder="Subject name (e.g., Data Structures)"
+              value={newSubjectForClass.name}
+              onChange={(e) => setNewSubjectForClass(prev => ({ ...prev, name: e.target.value }))}
+              onKeyPress={(e) => e.key === 'Enter' && addSubjectToCurrentClass()}
+            />
+            
+            <div className="flex flex-col">
+              <select
+                value={newSubjectForClass.type}
+                onChange={(e) => setNewSubjectForClass(prev => ({ ...prev, type: e.target.value }))}
+                className="px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+              >
+                <option value="theory">Theory</option>
+                <option value="lab">Lab</option>
+              </select>
+            </div>
+            
+            <GradientButton onClick={addSubjectToCurrentClass} variant="secondary" className="whitespace-nowrap">
+              + Add Subject
+            </GradientButton>
+          </div>
+          
+          {/* Current Class Subjects */}
+          {currentClassSubjects.length > 0 && (
+            <div className="space-y-2 mt-3">
+              <p className="text-sm text-gray-400">Subjects added ({currentClassSubjects.length}):</p>
+              {currentClassSubjects.map((subject, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between bg-gray-900 px-3 py-2 rounded-lg"
+                >
+                  <div>
+                    <span className="text-white font-medium">{subject.name}</span>
+                    <span className={`ml-2 text-xs px-2 py-1 rounded ${
+                      subject.type === 'lab' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
+                    }`}>
+                      {subject.type}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => removeSubjectFromCurrentClass(index)}
+                    className="text-red-500 hover:text-red-400 text-sm"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        
+        <GradientButton 
+          onClick={addClass} 
+          className="w-full"
+          disabled={!newClass.trim() || currentClassSubjects.length === 0}
+        >
+          ✅ Add Class with {currentClassSubjects.length} Subject(s)
         </GradientButton>
       </div>
       
+      {/* Added Classes List */}
       <div className="mt-6">
         <h3 className="text-lg font-semibold mb-3">Added Classes ({classes.length})</h3>
         {classes.length === 0 ? (
           <p className="text-gray-400">No classes added yet.</p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {classes.map((className, index) => (
+          <div className="space-y-3">
+            {classes.map((classData, index) => (
               <motion.div
                 key={index}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center justify-between bg-gray-800 px-4 py-3 rounded-lg"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gray-800 p-4 rounded-lg border border-gray-700"
               >
-                <span className="text-white">{className}</span>
-                <button
-                  onClick={() => removeClass(index)}
-                  className="text-red-500 hover:text-red-400"
-                >
-                  ✕
-                </button>
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <h4 className="text-white font-bold text-lg mb-2">{classData.name}</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {classData.subjects.map((subject, sIndex) => (
+                        <span
+                          key={sIndex}
+                          className={`px-3 py-1 rounded-full text-sm ${
+                            subject.type === 'lab' 
+                              ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' 
+                              : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                          }`}
+                        >
+                          {subject.name} {subject.type === 'lab' && '🧪'}
+                        </span>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {classData.subjects.length} subject(s) • {classData.subjects.filter(s => s.type === 'lab').length} lab(s)
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => removeClass(index)}
+                    className="text-red-500 hover:text-red-400 ml-4"
+                  >
+                    🗑️ Delete
+                  </button>
+                </div>
               </motion.div>
             ))}
           </div>
@@ -771,87 +899,206 @@ const TimetableGenerator = () => {
     </div>
   );
   
-  const renderStep4 = () => (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold mb-6">Step 4: Add Subjects</h2>
-      
-      <div className="flex gap-4">
-        <Input
-          label="Subject Name"
-          placeholder="e.g., Data Structures"
-          value={newSubject.name}
-          onChange={(e) => setNewSubject(prev => ({ ...prev, name: e.target.value }))}
-          onKeyPress={(e) => e.key === 'Enter' && addSubject()}
-        />
+  const renderStep4 = () => {
+    // Get subjects for selected class
+    const selectedClass = classes.find(c => c.name === currentAssignment.className);
+    const availableSubjects = selectedClass ? selectedClass.subjects : [];
+    
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold mb-6">Step 4: Configure Faculty Assignments</h2>
+        <p className="text-gray-400 mb-4">Assign faculty members to teach specific subjects for each class.</p>
         
-        <div className="flex flex-col">
-          <label className="block text-sm font-medium text-gray-300 mb-2">Type</label>
-          <select
-            value={newSubject.type}
-            onChange={(e) => setNewSubject(prev => ({ ...prev, type: e.target.value }))}
-            className="px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-          >
-            <option value="theory">Theory</option>
-            <option value="lab">Lab</option>
-          </select>
+        <div className="bg-gray-800 p-6 rounded-lg space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Class *</label>
+              <select
+                value={currentAssignment.className}
+                onChange={(e) => setCurrentAssignment(prev => ({ ...prev, className: e.target.value, subjectName: '' }))}
+                className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+              >
+                <option value="">Select class</option>
+                {classes.map((classData, index) => (
+                  <option key={index} value={classData.name}>{classData.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">
+                Subject * {currentAssignment.className && `(${availableSubjects.length} available)`}
+              </label>
+              <select
+                value={currentAssignment.subjectName}
+                onChange={(e) => setCurrentAssignment(prev => ({ ...prev, subjectName: e.target.value }))}
+                className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+                disabled={!currentAssignment.className}
+              >
+                <option value="">Select subject</option>
+                {availableSubjects.map((subject, index) => (
+                  <option key={index} value={subject.name}>
+                    {subject.name} {subject.type === 'lab' && '🧪'}
+                  </option>
+                ))}
+              </select>
+              {!currentAssignment.className && (
+                <p className="text-xs text-gray-500 mt-1">Select a class first</p>
+              )}
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Primary Faculty *</label>
+              <select
+                value={currentAssignment.facultyName}
+                onChange={(e) => setCurrentAssignment(prev => ({ ...prev, facultyName: e.target.value }))}
+                className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+              >
+                <option value="">Select faculty</option>
+                {faculties.map((faculty, index) => (
+                  <option key={index} value={faculty}>{faculty}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Weekly Limit</label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={currentAssignment.weeklyLimit}
+                onChange={(e) => setCurrentAssignment(prev => ({ ...prev, weeklyLimit: parseInt(e.target.value) || 3 }))}
+                className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+              />
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-6">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={currentAssignment.isLab}
+                onChange={(e) => setCurrentAssignment(prev => ({ 
+                  ...prev, 
+                  isLab: e.target.checked,
+                  consecutivePeriods: e.target.checked ? 2 : 1
+                }))}
+                className="w-4 h-4 text-pink-600 bg-gray-700 border-gray-600 rounded focus:ring-pink-500"
+              />
+              <span className="text-white">Is Lab Session</span>
+            </label>
+            
+            {currentAssignment.isLab && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Consecutive Periods</label>
+                <input
+                  type="number"
+                  min="2"
+                  max="4"
+                  value={currentAssignment.consecutivePeriods}
+                  onChange={(e) => setCurrentAssignment(prev => ({ ...prev, consecutivePeriods: parseInt(e.target.value) || 2 }))}
+                  className="px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+                />
+              </div>
+            )}
+            
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={currentAssignment.multiFaculty}
+                onChange={(e) => setCurrentAssignment(prev => ({ ...prev, multiFaculty: e.target.checked }))}
+                className="w-4 h-4 text-pink-600 bg-gray-700 border-gray-600 rounded focus:ring-pink-500"
+              />
+              <span className="text-white">Multiple Faculty</span>
+            </label>
+          </div>
+          
+          {currentAssignment.multiFaculty && (
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Additional Faculty</label>
+              <div className="flex flex-wrap gap-2">
+                {faculties.filter(f => f !== currentAssignment.facultyName).map((faculty, index) => (
+                  <button
+                    key={index}
+                    onClick={() => toggleAdditionalFaculty(faculty)}
+                    className={`px-3 py-1 rounded-lg text-sm ${
+                      currentAssignment.additionalFaculties.includes(faculty)
+                        ? 'bg-pink-500 text-white'
+                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    }`}
+                  >
+                    {faculty}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <GradientButton onClick={addAssignment} className="w-full">
+            Add Assignment
+          </GradientButton>
         </div>
         
-        <GradientButton onClick={addSubject} className="self-end">
-          Add Subject
-        </GradientButton>
-      </div>
-      
-      <div className="mt-6">
-        <h3 className="text-lg font-semibold mb-3">Added Subjects ({subjects.length})</h3>
-        {subjects.length === 0 ? (
-          <p className="text-gray-400">No subjects added yet.</p>
-        ) : (
-          <div className="space-y-2">
-            {subjects.map((subject, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="flex items-center justify-between bg-gray-800 px-4 py-3 rounded-lg"
-              >
-                <div>
-                  <span className="text-white font-medium">{subject.name}</span>
-                  <span className={`ml-3 text-xs px-2 py-1 rounded ${
-                    subject.type === 'lab' ? 'bg-purple-500/20 text-purple-400' : 'bg-blue-500/20 text-blue-400'
-                  }`}>
-                    {subject.type}
-                  </span>
-                </div>
-                <button
-                  onClick={() => removeSubject(index)}
-                  className="text-red-500 hover:text-red-400"
+        <div className="mt-6">
+          <h3 className="text-lg font-semibold mb-3">Configured Assignments ({assignments.length})</h3>
+          {assignments.length === 0 ? (
+            <p className="text-gray-400">No assignments configured yet.</p>
+          ) : (
+            <div className="space-y-2">
+              {assignments.map((assignment) => (
+                <motion.div
+                  key={assignment.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="bg-gray-800 px-4 py-3 rounded-lg"
                 >
-                  Remove
-                </button>
-              </motion.div>
-            ))}
-          </div>
-        )}
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="text-white font-medium">
+                        {assignment.className} - {assignment.subjectName}
+                      </div>
+                      <div className="text-sm text-gray-400 mt-1">
+                        Faculty: {assignment.facultyName}
+                        {assignment.additionalFaculties.length > 0 && `, ${assignment.additionalFaculties.join(', ')}`}
+                        {' • '}
+                        {assignment.weeklyLimit}x per week
+                        {assignment.isLab && ` • Lab (${assignment.consecutivePeriods} periods)`}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeAssignment(assignment.id)}
+                      className="text-red-500 hover:text-red-400 ml-4"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
   
   const renderStep5 = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold mb-6">Step 5: Configure Subject Assignments</h2>
+      <h2 className="text-2xl font-bold mb-6">Step 5: Manual Assignments (Optional)</h2>
+      <p className="text-gray-400 mb-4">Pre-assign specific slots if needed. These will be given highest priority.</p>
       
       <div className="bg-gray-800 p-6 rounded-lg space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Class *</label>
             <select
-              value={currentAssignment.className}
-              onChange={(e) => setCurrentAssignment(prev => ({ ...prev, className: e.target.value }))}
+              value={manualEntry.className}
+              onChange={(e) => setManualEntry(prev => ({ ...prev, className: e.target.value, subjectName: '' }))}
               className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
             >
               <option value="">Select class</option>
-              {classes.map((className, index) => (
-                <option key={index} value={className}>{className}</option>
+              {classes.map((classData, index) => (
+                <option key={index} value={classData.name}>{classData.name}</option>
               ))}
             </select>
           </div>
@@ -859,15 +1106,22 @@ const TimetableGenerator = () => {
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Subject *</label>
             <select
-              value={currentAssignment.subjectName}
-              onChange={(e) => setCurrentAssignment(prev => ({ ...prev, subjectName: e.target.value }))}
+              value={manualEntry.subjectName}
+              onChange={(e) => setManualEntry(prev => ({ ...prev, subjectName: e.target.value }))}
               className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+              disabled={!manualEntry.className}
             >
               <option value="">Select subject</option>
-              {subjects.map((subject, index) => (
-                <option key={index} value={subject.name}>{subject.name}</option>
-              ))}
+              {manualEntry.className && (() => {
+                const selectedClass = classes.find(c => c.name === manualEntry.className);
+                return (selectedClass?.subjects || []).map((subject, index) => (
+                  <option key={index} value={subject.name}>{subject.name}</option>
+                ));
+              })()}
             </select>
+            {!manualEntry.className && (
+              <p className="text-xs text-gray-400 mt-1">Select a class first</p>
+            )}
           </div>
           
           <div>
@@ -1006,117 +1260,7 @@ const TimetableGenerator = () => {
   
   const renderStep6 = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold mb-6">Step 6: Manual Assignments (Optional)</h2>
-      <p className="text-gray-400 mb-4">Pre-assign specific slots if needed. These will be given highest priority.</p>
-      
-      <div className="bg-gray-800 p-6 rounded-lg space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Faculty</label>
-            <select
-              value={manualEntry.facultyName}
-              onChange={(e) => setManualEntry(prev => ({ ...prev, facultyName: e.target.value }))}
-              className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-            >
-              <option value="">Select faculty</option>
-              {faculties.map((faculty, index) => (
-                <option key={index} value={faculty}>{faculty}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Class</label>
-            <select
-              value={manualEntry.className}
-              onChange={(e) => setManualEntry(prev => ({ ...prev, className: e.target.value }))}
-              className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-            >
-              <option value="">Select class</option>
-              {classes.map((className, index) => (
-                <option key={index} value={className}>{className}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Subject</label>
-            <select
-              value={manualEntry.subjectName}
-              onChange={(e) => setManualEntry(prev => ({ ...prev, subjectName: e.target.value }))}
-              className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-            >
-              <option value="">Select subject</option>
-              {subjects.map((subject, index) => (
-                <option key={index} value={subject.name}>{subject.name}</option>
-              ))}
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Day</label>
-            <input
-              type="number"
-              min="1"
-              max={config.rows}
-              value={manualEntry.day}
-              onChange={(e) => setManualEntry(prev => ({ ...prev, day: parseInt(e.target.value) || 1 }))}
-              className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-300 mb-2">Period</label>
-            <input
-              type="number"
-              min="1"
-              max={config.cols}
-              value={manualEntry.period}
-              onChange={(e) => setManualEntry(prev => ({ ...prev, period: parseInt(e.target.value) || 1 }))}
-              className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-            />
-          </div>
-        </div>
-        
-        <GradientButton onClick={addManualAssignment} className="w-full">
-          Add Manual Assignment
-        </GradientButton>
-      </div>
-      
-      <div className="mt-6">
-        <h3 className="text-lg font-semibold mb-3">Manual Assignments ({manualAssignments.length})</h3>
-        {manualAssignments.length === 0 ? (
-          <p className="text-gray-400">No manual assignments. Skip to next step.</p>
-        ) : (
-          <div className="space-y-2">
-            {manualAssignments.map((assignment) => (
-              <motion.div
-                key={assignment.id}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex items-center justify-between bg-gray-800 px-4 py-3 rounded-lg"
-              >
-                <div className="text-white">
-                  {assignment.facultyName} • {assignment.className} • {assignment.subjectName}
-                  {' '}(Day {assignment.day}, Period {assignment.period})
-                </div>
-                <button
-                  onClick={() => removeManualAssignment(assignment.id)}
-                  className="text-red-500 hover:text-red-400"
-                >
-                  Remove
-                </button>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-  
-  const renderStep7 = () => (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold mb-6">Step 7: Generate & Review Timetable</h2>
+      <h2 className="text-2xl font-bold mb-6">Step 6: Generate & Review Timetable</h2>
       
       {!generatedTimetable ? (
         <div className="text-center py-12">
@@ -1419,7 +1563,6 @@ const TimetableGenerator = () => {
                   {currentStep === 4 && renderStep4()}
                   {currentStep === 5 && renderStep5()}
                   {currentStep === 6 && renderStep6()}
-                  {currentStep === 7 && renderStep7()}
                 </motion.div>
               </AnimatePresence>
               
