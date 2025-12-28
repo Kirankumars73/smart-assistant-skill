@@ -1,0 +1,582 @@
+/**
+ * Timetable Generation Service
+ * Implements backtracking algorithm for automatic timetable generation
+ * Based on constraint satisfaction and recursive assignment
+ */
+
+// Global timetable state
+let facultyTimetable = {};  // { facultyName: [[...], [...]] }
+let classTimetable = {};    // { className: [[...], [...]] }
+let rows = 5;  // Number of days (default)
+let cols = 6;  // Number of periods (default)
+
+// Data storage
+let manualData = {};   // Manual assignments
+let facultyData = {};  // Faculty-subject-class mappings
+let labData = {};      // Lab session data
+
+/**
+ * Initialize empty timetable structure
+ */
+export const initializeTimetable = (numDays, numPeriods) => {
+  rows = numDays;
+  cols = numPeriods;
+  facultyTimetable = {};
+  classTimetable = {};
+  manualData = {};
+  facultyData = {};
+  labData = {};
+};
+
+/**
+ * Add faculty to timetable
+ */
+export const addFaculty = (facultyName) => {
+  if (!facultyName || facultyName.trim() === '') {
+    throw new Error('Faculty name cannot be empty');
+  }
+  
+  if (facultyTimetable[facultyName]) {
+    return { success: false, message: 'Faculty already exists' };
+  }
+  
+  facultyTimetable[facultyName] = Array(rows).fill(null).map(() => Array(cols).fill('FREE'));
+  return { success: true, message: `Faculty ${facultyName} added successfully` };
+};
+
+/**
+ * Add class to timetable
+ */
+export const addClass = (className) => {
+  if (!className || className.trim() === '') {
+    throw new Error('Class name cannot be empty');
+  }
+  
+  if (classTimetable[className]) {
+    return { success: false, message: 'Class already exists' };
+  }
+  
+  classTimetable[className] = Array(rows).fill(null).map(() => Array(cols).fill('FREE'));
+  return { success: true, message: `Class ${className} added successfully` };
+};
+
+/**
+ * Add manual assignment data
+ */
+export const addManualData = (facultyName, className, subjectName, day, time) => {
+  if (!manualData[facultyName]) {
+    manualData[facultyName] = [];
+  }
+  manualData[facultyName].push({ className, subjectName, day, time });
+};
+
+/**
+ * Get all manual assignments
+ */
+export const getAllManualData = () => {
+  const allData = [];
+  for (const [facultyName, assignments] of Object.entries(manualData)) {
+    for (const { className, subjectName, day, time } of assignments) {
+      allData.push({ facultyName, className, subjectName, day, time });
+    }
+  }
+  return allData;
+};
+
+/**
+ * Clear manual data
+ */
+export const clearManualData = () => {
+  manualData = {};
+};
+
+/**
+ * Add faculty data (subject assignments)
+ */
+export const addFacultyData = (facultyName, className, limit, subjectName) => {
+  if (!facultyData[facultyName]) {
+    facultyData[facultyName] = [];
+  }
+  facultyData[facultyName].push({ className, limit, subjectName });
+};
+
+/**
+ * Get all faculty data
+ */
+export const getAllFacultyData = () => {
+  const allData = [];
+  for (const [facultyName, assignments] of Object.entries(facultyData)) {
+    for (const { className, limit, subjectName } of assignments) {
+      allData.push({ facultyName, className, limit, subjectName });
+    }
+  }
+  return allData;
+};
+
+/**
+ * Clear faculty data
+ */
+export const clearFacultyData = () => {
+  facultyData = {};
+};
+
+/**
+ * Add lab data
+ */
+export const addLabData = (limit, count, faculties, className, subjectName, isLab) => {
+  if (!labData[className]) {
+    labData[className] = [];
+  }
+  labData[className].push({ limit, count, faculties, subjectName, isLab });
+};
+
+/**
+ * Get all lab data
+ */
+export const getAllLabData = () => {
+  const allData = [];
+  for (const [className, labs] of Object.entries(labData)) {
+    for (const { limit, count, faculties, subjectName, isLab } of labs) {
+      allData.push({ limit, count, faculties, className, subjectName, isLab });
+    }
+  }
+  return allData;
+};
+
+/**
+ * Clear lab data
+ */
+export const clearLabData = () => {
+  labData = {};
+};
+
+/**
+ * Check if a slot is available
+ */
+const isSlotAvailable = (facultyName, className, day, period) => {
+  if (day < 0 || day >= rows || period < 0 || period >= cols) {
+    return false;
+  }
+  
+  if (!facultyTimetable[facultyName] || !classTimetable[className]) {
+    return false;
+  }
+  
+  return facultyTimetable[facultyName][day][period] === 'FREE' && 
+         classTimetable[className][day][period] === 'FREE';
+};
+
+/**
+ * Add data to timetable (assign a slot)
+ */
+export const addData = (facultyName, day, period, className, subjectName) => {
+  if (!facultyTimetable[facultyName]) {
+    return { success: false, message: 'Faculty not found' };
+  }
+  
+  if (!classTimetable[className]) {
+    return { success: false, message: 'Class not found' };
+  }
+  
+  if (!isSlotAvailable(facultyName, className, day, period)) {
+    return { success: false, message: 'Slot not available' };
+  }
+  
+  facultyTimetable[facultyName][day][period] = className;
+  classTimetable[className][day][period] = subjectName;
+  
+  return { success: true, message: 'Timetable updated successfully' };
+};
+
+/**
+ * Shuffle array (Fisher-Yates algorithm)
+ */
+const shuffleArray = (array) => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
+/**
+ * Find empty positions for faculty and class
+ */
+const findEmptyPositions = (facultyName, className, count, isLab) => {
+  if (!facultyTimetable[facultyName]) {
+    console.error('Faculty not found:', facultyName);
+    return [];
+  }
+  
+  if (!classTimetable[className]) {
+    console.error('Class not found:', className);
+    return [];
+  }
+  
+  const emptyPositions = [];
+  
+  if (isLab) {
+    // For labs, find consecutive empty slots
+    for (let i = 0; i < rows; i++) {
+      // Check first 'count' consecutive hours
+      let firstConsecutive = true;
+      for (let j = 0; j < count; j++) {
+        if (!isSlotAvailable(facultyName, className, i, j)) {
+          firstConsecutive = false;
+          break;
+        }
+      }
+      if (firstConsecutive) {
+        emptyPositions.push({ day: i, period: 0 });
+      }
+      
+      // Check last 'count' consecutive hours (avoid Friday last slots for 3-hour labs)
+      if (i !== 4 || count < 3) {
+        let lastConsecutive = true;
+        const startPos = cols - count;
+        for (let j = startPos; j < cols; j++) {
+          if (!isSlotAvailable(facultyName, className, i, j)) {
+            lastConsecutive = false;
+            break;
+          }
+        }
+        if (lastConsecutive) {
+          emptyPositions.push({ day: i, period: startPos });
+        }
+      }
+    }
+  } else {
+    // For regular subjects, find random positions (max 2 per day)
+    for (let i = 0; i < rows; i++) {
+      let limitPerDay = 0;
+      const randomIndices = shuffleArray([...Array(cols).keys()]);
+      
+      for (const j of randomIndices) {
+        if (limitPerDay < 2 && isSlotAvailable(facultyName, className, i, j)) {
+          emptyPositions.push({ day: i, period: j });
+          limitPerDay++;
+        }
+      }
+    }
+    
+    if (emptyPositions.length < count) {
+      console.warn(`Not enough empty positions. Needed: ${count}, Found: ${emptyPositions.length}`);
+      return false;
+    }
+  }
+  
+  return shuffleArray(emptyPositions);
+};
+
+/**
+ * Recursive backtracking assignment
+ */
+const assignRecursive = (allData, index = 0) => {
+  // Base case: all assignments done
+  if (index >= allData.length) {
+    return true;
+  }
+  
+  const { facultyName, className, limit, subjectName } = allData[index];
+  
+  // Try up to 3 times with different random positions
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const positions = findEmptyPositions(facultyName, className, limit, false);
+    
+    if (positions === false) {
+      continue;
+    }
+    
+    if (!positions || positions.length === 0) {
+      continue;
+    }
+    
+    const assignmentsMade = [];
+    let successCount = 0;
+    
+    // Try to make all required assignments for this subject
+    for (const { day, period } of positions) {
+      if (successCount >= limit) break;
+      
+      if (isSlotAvailable(facultyName, className, day, period)) {
+        const result = addData(facultyName, day, period, className, subjectName);
+        if (result.success) {
+          assignmentsMade.push({ day, period });
+          successCount++;
+        }
+      }
+    }
+    
+    // If we made all needed assignments, try to solve the rest
+    if (successCount === limit) {
+      if (assignRecursive(allData, index + 1)) {
+        return true;
+      }
+    }
+    
+    // Backtrack: undo assignments
+    for (const { day, period } of assignmentsMade) {
+      facultyTimetable[facultyName][day][period] = 'FREE';
+      classTimetable[className][day][period] = 'FREE';
+    }
+  }
+  
+  console.error(`Failed to assign ${subjectName} to ${className} by ${facultyName}`);
+  return false;
+};
+
+/**
+ * Automatic assignment for labs and multi-faculty subjects
+ */
+const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
+  try {
+    if (isLab) {
+      // Find common empty positions for all faculties
+      let commonPositions = new Set(
+        findEmptyPositions(faculties[0], className, count, true)
+          .map(pos => `${pos.day},${pos.period}`)
+      );
+      
+      for (let i = 1; i < faculties.length; i++) {
+        const facultyPositions = new Set(
+          findEmptyPositions(faculties[i], className, count, true)
+            .map(pos => `${pos.day},${pos.period}`)
+        );
+        commonPositions = new Set([...commonPositions].filter(x => facultyPositions.has(x)));
+      }
+      
+      if (commonPositions.size === 0) {
+        console.error('No common empty positions found for lab');
+        return false;
+      }
+      
+      const positionsArray = Array.from(commonPositions).map(pos => {
+        const [day, period] = pos.split(',').map(Number);
+        return { day, period };
+      });
+      
+      const shuffledPositions = shuffleArray(positionsArray);
+      const assignedPositions = [];
+      let occurrence = 0;
+      const taken = [];
+      
+      for (const { day, period } of shuffledPositions) {
+        if (occurrence >= limit) break;
+        
+        // Only one lab session per day
+        if (!taken.includes(day)) {
+          taken.push(day);
+          occurrence++;
+          
+          // Assign consecutive periods
+          for (let k = 0; k < count; k++) {
+            assignedPositions.push({ day, period: period + k });
+          }
+        }
+      }
+      
+      if (occurrence < limit) {
+        console.warn(`Could only assign ${occurrence} lab sessions out of ${limit} requested`);
+      }
+      
+      // Assign all positions to all faculties
+      for (const { day, period } of assignedPositions) {
+        for (const facultyName of faculties) {
+          const result = manualAssign(facultyName, className, subjectName, day, period, true);
+          if (!result) {
+            console.error(`Failed to assign lab slot at day ${day}, period ${period}`);
+            return false;
+          }
+        }
+      }
+      
+      return true;
+    } else {
+      // Multi-faculty regular subject
+      let commonPositions = new Set();
+      
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          let allFree = true;
+          for (const facultyName of faculties) {
+            if (!isSlotAvailable(facultyName, className, i, j)) {
+              allFree = false;
+              break;
+            }
+          }
+          if (allFree) {
+            commonPositions.add(`${i},${j}`);
+          }
+        }
+      }
+      
+      if (commonPositions.size === 0) {
+        console.error('No common empty positions found');
+        return false;
+      }
+      
+      const positionsArray = Array.from(commonPositions).map(pos => {
+        const [day, period] = pos.split(',').map(Number);
+        return { day, period };
+      });
+      
+      const shuffledPositions = shuffleArray(positionsArray);
+      const dayCount = {};
+      const selectedPositions = [];
+      
+      for (const { day, period } of shuffledPositions) {
+        if (selectedPositions.length >= limit) break;
+        
+        if (!dayCount[day]) {
+          dayCount[day] = 1;
+          selectedPositions.push({ day, period });
+        } else if (dayCount[day] === 1) {
+          dayCount[day]++;
+          selectedPositions.push({ day, period });
+        }
+      }
+      
+      // Assign selected positions to all faculties
+      for (const { day, period } of selectedPositions) {
+        for (const facultyName of faculties) {
+          const result = manualAssign(facultyName, className, subjectName, day, period, true);
+          if (!result) {
+            console.error(`Failed to assign slot at day ${day}, period ${period}`);
+            return false;
+          }
+        }
+      }
+      
+      return true;
+    }
+  } catch (error) {
+    console.error('Error in autoAssign:', error);
+    return false;
+  }
+};
+
+/**
+ * Manual assignment
+ */
+const manualAssign = (facultyName, className, subjectName, day, period, isLab) => {
+  if (day < 0 || day >= rows || period < 0 || period >= cols) {
+    console.error('Invalid day or period');
+    return false;
+  }
+  
+  if (!facultyTimetable[facultyName]) {
+    console.error('Faculty not found');
+    return false;
+  }
+  
+  if (!classTimetable[className]) {
+    console.error('Class not found');
+    return false;
+  }
+  
+  if (facultyTimetable[facultyName][day][period] !== 'FREE') {
+    console.warn(`Slot already occupied for ${facultyName} at day ${day}, period ${period}`);
+    return false;
+  }
+  
+  facultyTimetable[facultyName][day][period] = className;
+  classTimetable[className][day][period] = subjectName;
+  
+  return true;
+};
+
+/**
+ * Reset timetable to FREE
+ */
+export const resetTimetable = () => {
+  for (const facultyName in facultyTimetable) {
+    facultyTimetable[facultyName] = Array(rows).fill(null).map(() => Array(cols).fill('FREE'));
+  }
+  
+  for (const className in classTimetable) {
+    classTimetable[className] = Array(rows).fill(null).map(() => Array(cols).fill('FREE'));
+  }
+  
+  return true;
+};
+
+/**
+ * Main timetable generation function
+ */
+export const generateTimetable = () => {
+  try {
+    // Step 1: Reset timetables
+    resetTimetable();
+    
+    // Step 2: Apply manual assignments (highest priority)
+    const allManualData = getAllManualData();
+    for (const { facultyName, className, subjectName, day, time } of allManualData) {
+      if (!manualAssign(facultyName, className, subjectName, day, time, false)) {
+        console.warn(`Failed to apply manual assignment: ${subjectName} for ${className}`);
+      }
+    }
+    
+    // Step 3: Apply lab assignments
+    const allLabData = getAllLabData();
+    for (const { limit, count, faculties, className, subjectName, isLab } of allLabData) {
+      if (!autoAssign(limit, count, faculties, className, subjectName, isLab)) {
+        console.warn(`Failed to assign lab: ${subjectName} for ${className}`);
+      }
+    }
+    
+    // Step 4: Apply regular assignments using backtracking
+    const allFacultyData = getAllFacultyData();
+    if (allFacultyData.length > 0) {
+      if (!assignRecursive(allFacultyData)) {
+        return {
+          success: false,
+          message: 'Could not complete timetable assignment. Please check constraints.',
+          facultyTimetables: facultyTimetable,
+          classTimetables: classTimetable
+        };
+      }
+    }
+    
+    return {
+      success: true,
+      message: 'Timetable generated successfully!',
+      facultyTimetables: facultyTimetable,
+      classTimetables: classTimetable
+    };
+  } catch (error) {
+    console.error('Error generating timetable:', error);
+    return {
+      success: false,
+      message: `Error: ${error.message}`,
+      facultyTimetables: facultyTimetable,
+      classTimetables: classTimetable
+    };
+  }
+};
+
+/**
+ * Get current timetables
+ */
+export const getTimetables = () => {
+  return {
+    facultyTimetables: facultyTimetable,
+    classTimetables: classTimetable,
+    rows,
+    cols
+  };
+};
+
+/**
+ * Get faculty list
+ */
+export const getFacultyList = () => {
+  return Object.keys(facultyTimetable);
+};
+
+/**
+ * Get class list
+ */
+export const getClassList = () => {
+  return Object.keys(classTimetable);
+};
