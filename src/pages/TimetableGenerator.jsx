@@ -73,6 +73,7 @@ const TimetableGenerator = () => {
   const [generatedTimetable, setGeneratedTimetable] = useState(null);
   const [conflicts, setConflicts] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // Prevent double-save
   const [activeTab, setActiveTab] = useState(userRole === 'student' ? 'class' : 'faculty'); // Students default to class view
   
   // Saved timetables
@@ -529,6 +530,13 @@ const TimetableGenerator = () => {
       return;
     }
     
+    // Prevent double-save
+    if (isSaving) {
+      return;
+    }
+    
+    setIsSaving(true);
+    
     try {
       // Serialize timetables to avoid nested arrays
       const serializedTimetables = serializeTimetables(
@@ -555,6 +563,8 @@ const TimetableGenerator = () => {
     } catch (error) {
       console.error('Error saving timetable:', error);
       alert('Failed to save timetable: ' + error.message);
+    } finally {
+      setIsSaving(false);
     }
   };
   
@@ -1391,8 +1401,8 @@ const TimetableGenerator = () => {
                 💾 Update Timetable
               </GradientButton>
             ) : (
-              <GradientButton onClick={saveTimetable}>
-                💾 Save to Database
+              <GradientButton onClick={saveTimetable} disabled={isSaving}>
+                💾 {isSaving ? 'Saving...' : 'Save to Database'}
               </GradientButton>
             )}
             <GradientButton onClick={handleExportExcel} variant="secondary">
