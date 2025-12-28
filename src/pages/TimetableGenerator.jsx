@@ -387,11 +387,11 @@ const TimetableGenerator = () => {
       const validation = validateConfiguration({
         rows: config.rows,
         cols: config.cols,
-        faculties,
-        classes,
-        subjects
+        faculties: faculties,
+        classes: classNames,
+        subjects: allSubjects, // Use extracted subjects from all classes
+        assignments: assignments
       });
-      
       if (!validation.valid) {
         alert('Configuration errors:\n' + validation.errors.join('\n'));
         setIsGenerating(false);
