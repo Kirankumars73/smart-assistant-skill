@@ -77,6 +77,7 @@ const TimetableGenerator = () => {
   const [generatedTimetable, setGeneratedTimetable] = useState(null);
   const [conflicts, setConflicts] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [activeTab, setActiveTab] = useState('faculty'); // 'faculty' or 'class'
   
   // Saved timetables
   const [savedTimetables, setSavedTimetables] = useState([]);
@@ -166,7 +167,7 @@ const TimetableGenerator = () => {
     
     setSelectedTimetable(timetable);
     setViewMode('create');
-    setCurrentStep(7); // Go to generate step to view
+    setCurrentStep(6); // Go to Step 6 (Generate & Review) to view timetable
   };
   
   // Delete timetable
@@ -1277,7 +1278,31 @@ const TimetableGenerator = () => {
           </GradientButton>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div>
+          {/* Tab Buttons */}
+          <div className="flex gap-4 mb-6">
+            <button
+              onClick={() => setActiveTab('faculty')}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                activeTab === 'faculty'
+                  ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              👨‍🏫 Faculty Timetables
+            </button>
+            <button
+              onClick={() => setActiveTab('class')}
+              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                activeTab === 'class'
+                  ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              🏫 Class Timetables
+            </button>
+          </div>
+          
           {conflicts.length > 0 && (
             <div className="bg-red-500/10 border border-red-500 rounded-lg p-4">
               <h3 className="text-red-500 font-bold mb-2">⚠️ Conflicts Detected ({conflicts.length})</h3>
@@ -1295,27 +1320,31 @@ const TimetableGenerator = () => {
             <h3 className="text-green-500 font-bold mb-2">✅ {generatedTimetable.message}</h3>
           </div>
           
-          {/* Faculty Timetables */}
-          <div>
-            <h3 className="text-2xl font-bold mb-4">Faculty Timetables</h3>
-            {Object.entries(generatedTimetable.facultyTimetables).map(([facultyName, timetable]) => (
-              <div key={facultyName}>
-                {renderTimetableGrid(timetable, facultyName, config.rows, config.cols)}
+          {/* Faculty Timetables - Only show if activeTab is 'faculty' */}
+          {activeTab === 'faculty' && (
+            <div className="space-y-8">
+              <h3 className="text-2xl font-bold mb-4">Faculty Timetables</h3>
+              {Object.entries(generatedTimetable.facultyTimetables).map(([name, timetable]) => (
+              <div key={name}>
+                {renderTimetableGrid(timetable, name, config.rows, config.cols)}
               </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
           
-          {/* Class Timetables */}
-          <div>
-            <h3 className="text-2xl font-bold mb-4 mt-8">Class Timetables</h3>
-            {Object.entries(generatedTimetable.classTimetables).map(([className, timetable]) => (
-              <div key={className}>
-                {renderTimetableGrid(timetable, className, config.rows, config.cols)}
+          {/* Class Timetables - Only show if activeTab is 'class' */}
+          {activeTab === 'class' && (
+            <div className="space-y-8">
+              <h3 className="text-2xl font-bold mb-4">Class Timetables</h3>
+              {Object.entries(generatedTimetable.classTimetables).map(([name, timetable]) => (
+              <div key={name}>
+                {renderTimetableGrid(timetable, name, config.rows, config.cols)}
               </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
           
-          {/* Actions */}
+          {/* Action Buttons */}
           <div className="flex flex-wrap gap-4 mt-8">
             {selectedTimetable ? (
               <GradientButton onClick={updateTimetable}>
