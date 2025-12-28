@@ -28,8 +28,6 @@ const TimetableGenerator = () => {
   // Configuration state
   const [config, setConfig] = useState({
     department: '',
-    scheme: '',
-    semester: '',
     rows: 5,  // days
     cols: 6,  // periods
     academicYear: ''
@@ -39,9 +37,9 @@ const TimetableGenerator = () => {
   const [faculties, setFaculties] = useState([]);
   const [newFaculty, setNewFaculty] = useState('');
   
-  // Class management - each class now has its own subjects
-  const [classes, setClasses] = useState([]); // Array of {name, subjects: [{name, type}]}
-  const [newClass, setNewClass] = useState('');
+  // Class management - each class now has its own subjects, semester, and scheme
+  const [classes, setClasses] = useState([]); // Array of {name, semester, scheme, subjects: [{name, type}]}
+  const [newClass, setNewClass] = useState({ name: '', semester: '', scheme: '' });
   const [currentClassSubjects, setCurrentClassSubjects] = useState([]);
   const [newSubjectForClass, setNewSubjectForClass] = useState({ name: '', type: 'theory' });
   
@@ -267,7 +265,7 @@ const TimetableGenerator = () => {
     setFaculties(prev => prev.filter((_, i) => i !== index));
   };
   
-  // Step 3: Class Management with subjects
+  // Step 3: Class Management with subjects, semester, and scheme
   const addSubjectToCurrentClass = () => {
     if (newSubjectForClass.name.trim()) {
       setCurrentClassSubjects(prev => [...prev, { ...newSubjectForClass, name: newSubjectForClass.name.trim() }]);
@@ -280,15 +278,21 @@ const TimetableGenerator = () => {
   };
   
   const addClass = () => {
-    if (newClass.trim() && currentClassSubjects.length > 0) {
+    if (newClass.name.trim() && newClass.semester && newClass.scheme && currentClassSubjects.length > 0) {
       const classData = {
-        name: newClass.trim(),
+        name: newClass.name.trim(),
+        semester: newClass.semester,
+        scheme: newClass.scheme,
         subjects: [...currentClassSubjects]
       };
       setClasses(prev => [...prev, classData]);
-      setNewClass('');
+      setNewClass({ name: '', semester: '', scheme: '' });
       setCurrentClassSubjects([]);
-    } else if (newClass.trim() && currentClassSubjects.length === 0) {
+    } else if (!newClass.name.trim()) {
+      alert('Please enter class name');
+    } else if (!newClass.semester || !newClass.scheme) {
+      alert('Please select semester and scheme');
+    } else if (currentClassSubjects.length === 0) {
       alert('Please add at least one subject for this class');
     }
   };
@@ -673,34 +677,20 @@ const TimetableGenerator = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Input
           label="Department *"
-          placeholder="e.g., Computer Science"
+          placeholder="e.g., Computer Science, Electronics"
           value={config.department}
           onChange={(e) => handleConfigChange('department', e.target.value)}
         />
         
         <Input
-          label="Academic Year"
+          label="Academic Year *"
           placeholder="e.g., 2023-2024"
           value={config.academicYear}
           onChange={(e) => handleConfigChange('academicYear', e.target.value)}
         />
         
         <Input
-          label="Scheme (Optional)"
-          placeholder="e.g., 2022 Scheme"
-          value={config.scheme}
-          onChange={(e) => handleConfigChange('scheme', e.target.value)}
-        />
-        
-        <Input
-          label="Semester (Optional)"
-          placeholder="e.g., 5"
-          value={config.semester}
-          onChange={(e) => handleConfigChange('semester', e.target.value)}
-        />
-        
-        <Input
-          label="Number of Days *"
+          label="Days (Rows) *"
           type="number"
           min="1"
           max="7"
@@ -774,17 +764,52 @@ const TimetableGenerator = () => {
       <div className="bg-gray-800 p-6 rounded-lg space-y-4">
         <h3 className="text-lg font-semibold mb-3">Add New Class</h3>
         
-        <Input
-          label="Class Name *"
-          placeholder="e.g., CSE-5A, ECE-3B"
-          value={newClass}
-          onChange={(e) => setNewClass(e.target.value)}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Input
+            label="Class Name *"
+            placeholder="e.g., CSE-5A, ECE-3B"
+            value={newClass.name}
+            onChange={(e) => setNewClass(prev => ({ ...prev, name: e.target.value }))}
+          />
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Semester *</label>
+            <select
+              value={newClass.semester}
+              onChange={(e) => setNewClass(prev => ({ ...prev, semester: e.target.value }))}
+              className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+            >
+              <option value="">Select Semester</option>
+              <option value="1">Semester 1</option>
+              <option value="2">Semester 2</option>
+              <option value="3">Semester 3</option>
+              <option value="4">Semester 4</option>
+              <option value="5">Semester 5</option>
+              <option value="6">Semester 6</option>
+              <option value="7">Semester 7</option>
+              <option value="8">Semester 8</option>
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Scheme *</label>
+            <select
+              value={newClass.scheme}
+              onChange={(e) => setNewClass(prev => ({ ...prev, scheme: e.target.value }))}
+              className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+            >
+              <option value="">Select Scheme</option>
+              <option value="2018">2018 Scheme</option>
+              <option value="2022">2022 Scheme</option>
+              <option value="2024">2024 Scheme</option>
+            </select>
+          </div>
+        </div>
         
         {/* Subject Input for Current Class */}
         <div className="mt-4">
           <label className="block text-sm font-medium text-gray-300 mb-3">
-            Subjects for {newClass || 'this class'}
+            Subjects for {newClass.name || 'this class'}
           </label>
           
           <div className="flex gap-4 mb-3">
@@ -866,7 +891,15 @@ const TimetableGenerator = () => {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <h4 className="text-white font-bold text-lg mb-2">{classData.name}</h4>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="text-white font-bold text-lg">{classData.name}</h4>
+                      <span className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded">
+                        Sem {classData.semester}
+                      </span>
+                      <span className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded">
+                        {classData.scheme}
+                      </span>
+                    </div>
                     <div className="flex flex-wrap gap-2">
                       {classData.subjects.map((subject, sIndex) => (
                         <span
