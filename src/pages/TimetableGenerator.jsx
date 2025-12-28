@@ -17,6 +17,7 @@ import {
   detectConflicts,
   validateConfiguration 
 } from '../utils/timetableHelpers';
+import { exportFacultyTimetablesToPDF, exportClassTimetablesToPDF } from '../utils/pdfExportHelper';
 
 const TimetableGenerator = () => {
   const { currentUser, userRole } = useAuth();
@@ -568,14 +569,19 @@ const TimetableGenerator = () => {
     }
   };
   
-  // Export functions
+  // Export functions - context-aware based on activeTab
   const handleExportExcel = () => {
     if (!generatedTimetable) return;
     
-    const filename = `timetable_${config.department}_${config.semester}_${Date.now()}.xlsx`;
+    const timestamp = Date.now();
+    const timetables = activeTab === 'faculty' 
+      ? { facultyTimetables: generatedTimetable.facultyTimetables, classTimetables: {} }
+      : { facultyTimetables: {}, classTimetables: generatedTimetable.classTimetables };
+    
+    const filename = `${activeTab}_timetables_${timestamp}.xlsx`;
     exportToExcel(
-      generatedTimetable.facultyTimetables,
-      generatedTimetable.classTimetables,
+      timetables.facultyTimetables,
+      timetables.classTimetables,
       config.rows,
       config.cols,
       filename
@@ -585,22 +591,32 @@ const TimetableGenerator = () => {
   const handleExportText = () => {
     if (!generatedTimetable) return;
     
+    const timestamp = Date.now();
+    const timetables = activeTab === 'faculty' 
+      ? { facultyTimetables: generatedTimetable.facultyTimetables, classTimetables: {} }
+      : { facultyTimetables: {}, classTimetables: generatedTimetable.classTimetables };
+    
     const textContent = exportToText(
-      generatedTimetable.facultyTimetables,
-      generatedTimetable.classTimetables,
+      timetables.facultyTimetables,
+      timetables.classTimetables,
       config.rows,
       config.cols,
       config
     );
     
     if (textContent) {
-      const filename = `timetable_${config.department}_${config.semester}_${Date.now()}.txt`;
+      const filename = `${activeTab}_timetables_${timestamp}.txt`;
       downloadTextFile(textContent, filename);
     }
   };
   
   const handleExportJSON = () => {
     if (!generatedTimetable) return;
+    
+    const timestamp = Date.now();
+    const timetables = activeTab === 'faculty' 
+      ? { facultyTimetables: generatedTimetable.facultyTimetables, classTimetables: {} }
+      : { facultyTimetables: {}, classTimetables: generatedTimetable.classTimetables };
     
     const data = {
       config,
@@ -609,11 +625,26 @@ const TimetableGenerator = () => {
       subjects,
       assignments,
       manualAssignments,
-      timetables: generatedTimetable
+      timetables
     };
     
-    const filename = `timetable_${config.department}_${config.semester}_${Date.now()}.json`;
+    const filename = `${activeTab}_timetables_${timestamp}.json`;
     exportToJSON(data, filename);
+  };
+  
+  const handleExportPDF = async () => {
+    if (!generatedTimetable) return;
+    
+    try {
+      if (activeTab === 'faculty') {
+        await exportFacultyTimetablesToPDF(generatedTimetable.facultyTimetables, config);
+      } else {
+        await exportClassTimetablesToPDF(generatedTimetable.classTimetables, config);
+      }
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('Failed to export PDF: ' + error.message);
+    }
   };
   
   // Navigation
@@ -1413,6 +1444,9 @@ const TimetableGenerator = () => {
             </GradientButton>
             <GradientButton onClick={handleExportJSON} variant="secondary">
               📦 Export JSON
+            </GradientButton>
+            <GradientButton onClick={handleExportPDF} variant="secondary">
+              📑 Export PDF
             </GradientButton>
             <GradientButton 
               onClick={generateTimetable} 
