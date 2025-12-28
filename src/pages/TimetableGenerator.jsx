@@ -19,7 +19,7 @@ import {
 } from '../utils/timetableHelpers';
 
 const TimetableGenerator = () => {
-  const { hasFacultyAccess, currentUser } = useAuth();
+  const { currentUser, userRole } = useAuth();
   
   // Wizard step management
   const [currentStep, setCurrentStep] = useState(1);
@@ -73,7 +73,7 @@ const TimetableGenerator = () => {
   const [generatedTimetable, setGeneratedTimetable] = useState(null);
   const [conflicts, setConflicts] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [activeTab, setActiveTab] = useState('faculty'); // 'faculty' or 'class'
+  const [activeTab, setActiveTab] = useState(userRole === 'student' ? 'class' : 'faculty'); // Students default to class view
   
   // Saved timetables
   const [savedTimetables, setSavedTimetables] = useState([]);
@@ -1317,18 +1317,20 @@ const TimetableGenerator = () => {
         </div>
       ) : (
         <div>
-          {/* Tab Buttons */}
+          {/* Tab Buttons - Hide Faculty tab for students */}
           <div className="flex gap-4 mb-6">
-            <button
-              onClick={() => setActiveTab('faculty')}
-              className={`px-6 py-3 rounded-lg font-semibold transition-all ${
-                activeTab === 'faculty'
-                  ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
-            >
-              👨‍🏫 Faculty Timetables
-            </button>
+            {userRole !== 'student' && (
+              <button
+                onClick={() => setActiveTab('faculty')}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all ${
+                  activeTab === 'faculty'
+                    ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+              >
+                👨‍🏫 Faculty Timetables
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('class')}
               className={`px-6 py-3 rounded-lg font-semibold transition-all ${
