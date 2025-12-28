@@ -71,7 +71,7 @@ export const exportClassTimetablesToPDF = async (classTimetables, config, logoPa
     const tableData = prepareTimetableData(timetable, config.rows, config.cols);
     
     // Add table
-    doc.autoTable({
+    autoTable(doc, {
       startY: 25,
       head: [tableData.headers],
       body: tableData.rows,
