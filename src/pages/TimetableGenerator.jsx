@@ -25,21 +25,19 @@ const TimetableGenerator = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 6; // Reduced from 7: removed global subjects step
   
-  // Configuration state
+  // Configuration state - just grid dimensions
   const [config, setConfig] = useState({
-    department: '',
     rows: 5,  // days
-    cols: 6,  // periods
-    academicYear: ''
+    cols: 6   // periods
   });
   
   // Faculty management
   const [faculties, setFaculties] = useState([]);
   const [newFaculty, setNewFaculty] = useState('');
   
-  // Class management - each class now has its own subjects, semester, and scheme
-  const [classes, setClasses] = useState([]); // Array of {name, semester, scheme, subjects: [{name, type}]}
-  const [newClass, setNewClass] = useState({ name: '', semester: '', scheme: '' });
+  // Class management - each class has all its metadata
+  const [classes, setClasses] = useState([]); // Array of {name, department, semester, scheme, academicYear, subjects: [{name, type}]}
+  const [newClass, setNewClass] = useState({ name: '', department: '', semester: '', scheme: '', academicYear: '' });
   const [currentClassSubjects, setCurrentClassSubjects] = useState([]);
   const [newSubjectForClass, setNewSubjectForClass] = useState({ name: '', type: 'theory' });
   
@@ -127,12 +125,8 @@ const TimetableGenerator = () => {
   // Load timetable for editing
   const loadTimetableForEdit = (timetable) => {
     setConfig({
-      department: timetable.department || '',
-      scheme: timetable.scheme || '',
-      semester: timetable.semester || '',
       rows: timetable.rows || 5,
-      cols: timetable.cols || 6,
-      academicYear: timetable.academicYear || ''
+      cols: timetable.cols || 6
     });
     
     setFaculties(timetable.faculties || []);
@@ -278,20 +272,22 @@ const TimetableGenerator = () => {
   };
   
   const addClass = () => {
-    if (newClass.name.trim() && newClass.semester && newClass.scheme && currentClassSubjects.length > 0) {
+    if (newClass.name.trim() && newClass.department && newClass.semester && newClass.scheme && newClass.academicYear && currentClassSubjects.length > 0) {
       const classData = {
         name: newClass.name.trim(),
+        department: newClass.department,
         semester: newClass.semester,
         scheme: newClass.scheme,
+        academicYear: newClass.academicYear,
         subjects: [...currentClassSubjects]
       };
       setClasses(prev => [...prev, classData]);
-      setNewClass({ name: '', semester: '', scheme: '' });
+      setNewClass({ name: '', department: '', semester: '', scheme: '', academicYear: '' });
       setCurrentClassSubjects([]);
     } else if (!newClass.name.trim()) {
       alert('Please enter class name');
-    } else if (!newClass.semester || !newClass.scheme) {
-      alert('Please select semester and scheme');
+    } else if (!newClass.department || !newClass.semester || !newClass.scheme || !newClass.academicYear) {
+      alert('Please fill all class details (department, semester, scheme, academic year)');
     } else if (currentClassSubjects.length === 0) {
       alert('Please add at least one subject for this class');
     }
@@ -672,23 +668,10 @@ const TimetableGenerator = () => {
   // Step render functions
   const renderStep1 = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold mb-6">Step 1: Basic Configuration</h2>
+      <h2 className="text-2xl font-bold mb-6">Step 1: Timetable Grid Configuration</h2>
+      <p className="text-gray-400 mb-4">Configure the basic timetable grid structure.</p>
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Input
-          label="Department *"
-          placeholder="e.g., Computer Science, Electronics"
-          value={config.department}
-          onChange={(e) => handleConfigChange('department', e.target.value)}
-        />
-        
-        <Input
-          label="Academic Year *"
-          placeholder="e.g., 2023-2024"
-          value={config.academicYear}
-          onChange={(e) => handleConfigChange('academicYear', e.target.value)}
-        />
-        
         <Input
           label="Days (Rows) *"
           type="number"
@@ -699,7 +682,7 @@ const TimetableGenerator = () => {
         />
         
         <Input
-          label="Number of Periods per Day *"
+          label="Periods per Day (Columns) *"
           type="number"
           min="1"
           max="10"
@@ -764,13 +747,29 @@ const TimetableGenerator = () => {
       <div className="bg-gray-800 p-6 rounded-lg space-y-4">
         <h3 className="text-lg font-semibold mb-3">Add New Class</h3>
         
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Input
             label="Class Name *"
             placeholder="e.g., CSE-5A, ECE-3B"
             value={newClass.name}
             onChange={(e) => setNewClass(prev => ({ ...prev, name: e.target.value }))}
           />
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">Department *</label>
+            <select
+              value={newClass.department}
+              onChange={(e) => setNewClass(prev => ({ ...prev, department: e.target.value }))}
+              className="w-full px-4 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+            >
+              <option value="">Select Department</option>
+              <option value="Computer Science">Computer Science</option>
+              <option value="Electronics">Electronics & Communication</option>
+              <option value="Mechanical">Mechanical Engineering</option>
+              <option value="Civil">Civil Engineering</option>
+              <option value="Electrical">Electrical Engineering</option>
+            </select>
+          </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">Semester *</label>
@@ -804,6 +803,13 @@ const TimetableGenerator = () => {
               <option value="2024">2024 Scheme</option>
             </select>
           </div>
+          
+          <Input
+            label="Academic Year *"
+            placeholder="e.g., 2023-2024"
+            value={newClass.academicYear}
+            onChange={(e) => setNewClass(prev => ({ ...prev, academicYear: e.target.value }))}
+          />
         </div>
         
         {/* Subject Input for Current Class */}
@@ -891,13 +897,19 @@ const TimetableGenerator = () => {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <h4 className="text-white font-bold text-lg">{classData.name}</h4>
+                      <span className="px-2 py-1 bg-green-500/20 text-green-300 text-xs rounded">
+                        {classData.department}
+                      </span>
                       <span className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded">
                         Sem {classData.semester}
                       </span>
                       <span className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded">
                         {classData.scheme}
+                      </span>
+                      <span className="px-2 py-1 bg-orange-500/20 text-orange-300 text-xs rounded">
+                        {classData.academicYear}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2">
