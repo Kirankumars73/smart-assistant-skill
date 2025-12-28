@@ -1620,8 +1620,6 @@ const TimetableGenerator = () => {
                                 {typeof classItem === 'string' ? classItem : classItem.name}
                               </span>
                             ))}
-                              </span>
-                            ))}
                           </div>
                         </div>
                       )}
