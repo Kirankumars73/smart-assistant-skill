@@ -10,12 +10,22 @@ import Input from '../components/ui/Input';
 import GradientButton from '../components/ui/GradientButton';
 import SubjectInputList from '../components/forms/SubjectInputList';
 import { getInternalMarks, createEmptySubject, validateSubjects } from '../utils/subjectHelpers';
+import { useToast } from '../hooks/useToast';
+import { useConfirm } from '../hooks/useConfirm';
+import { getErrorMessage, getSuccessMessage } from '../utils/errorMessages';
+import { useLoadingDelay } from '../hooks/useLoadingDelay';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
+import { SkeletonCard } from '../components/ui/SkeletonLoader';
+import ProgressBar from '../components/ui/ProgressBar';
 import * as XLSX from 'xlsx';
 
 const StudentRecords = () => {
   const { hasFacultyAccess, isStudent } = useAuth();
+  const toast = useToast();
+  const { confirm, isOpen: confirmOpen, config: confirmConfig, handleConfirm, handleCancel } = useConfirm();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const showLoading = useLoadingDelay(loading, 200);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSemester, setFilterSemester] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
