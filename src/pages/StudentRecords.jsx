@@ -168,20 +168,31 @@ const StudentRecords = () => {
     setIsModalOpen(true);
   };
 
+
   const handleDelete = async (studentId) => {
     if (!hasFacultyAccess()) {
-      alert('You do not have permission to delete student records.');
+      toast.showError('You don\'t have permission to delete student records');
       return;
     }
 
-    if (window.confirm('Are you sure you want to delete this student record?')) {
-      try {
-        await deleteDoc(doc(db, 'students', studentId));
-        fetchStudents();
-      } catch (error) {
-        console.error('Error deleting student:', error);
-        alert('Failed to delete student.');
-      }
+    const confirmed = await confirm({
+      title: 'Delete Student',
+      message: 'Are you sure you want to delete this student record? This action cannot be undone.',
+      confirmText: 'Yes, Delete',
+      cancelText: 'Cancel',
+      type: 'danger',
+      icon: '🗑️'
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await deleteDoc(doc(db, 'students', studentId));
+      toast.showSuccess('Student deleted successfully');
+      fetchStudents();
+    } catch (error) {
+      console.error('Error deleting student:', error);
+      toast.showError(getErrorMessage(error));
     }
   };
 
@@ -1484,6 +1495,14 @@ const StudentRecords = () => {
           </button>
         </div>
       )}
+
+      {/* ConfirmDialog Component */}
+      <ConfirmDialog 
+        isOpen={confirmOpen}
+        onClose={handleCancel}
+        onConfirm={handleConfirm}
+        {...confirmConfig}
+      />
     </div>
   );
 };
