@@ -8,6 +8,7 @@ import GradientButton from '../components/ui/GradientButton';
 import Input from '../components/ui/Input';
 import { useAuth } from '../contexts/AuthContext';
 import { generatePredictions } from '../services/questionPredictionService';
+import { exportQuestionPredictionToPDF } from '../utils/questionPdfHelper';
 import * as XLSX from 'xlsx';
 
 const QuestionPrediction = () =>{
@@ -141,65 +142,65 @@ const QuestionPrediction = () =>{
 
   const filteredPredictions = getFilteredPredictions();
 
-  // Export question paper as formatted document
+  // Export question paper as formatted text document (fixed alignment)
   const exportQuestionPaper = () => {
     if (!predictions) return;
 
-    // Create formatted text content
-    let content = `
-╔════════════════════════════════════════════════════════════════╗
-║              PREDICTED QUESTION PAPER                         ║
-╚════════════════════════════════════════════════════════════════╝
-
-Subject: ${predictions.subjectName}
-Subject Code: ${predictions.subjectCode}
-Semester: ${predictions.semester}
-Generated: ${new Date(predictions.generatedAt).toLocaleDateString()}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-`;
+    // Create formatted text content with proper alignment
+    let content = '';
+    content += '================================================================================\n';
+    content += '                       PREDICTED QUESTION PAPER                                 \n';
+    content += '================================================================================\n\n';
+    content += `Subject        : ${predictions.subjectName}\n`;
+    content += `Subject Code   : ${predictions.subjectCode}\n`;
+    content += `Semester       : ${predictions.semester}\n`;
+    content += `Generated Date : ${new Date(predictions.generatedAt).toLocaleDateString()}\n\n`;
+    content += '================================================================================\n\n';
 
     // Part A
-    content += `PART A - Compulsory Questions (3 marks each)\n`;
-    content += `Answer ALL questions\n\n`;
+    content += 'PART A - Compulsory Questions (3 marks each)\n';
+    content += 'Answer ALL questions\n';
+    content += '--------------------------------------------------------------------------------\n\n';
 
     Object.entries(predictions.partA).forEach(([module, questions]) => {
-      content += `\n${module}:\n`;
+      content += `${module}:\n`;
+      content += '\n';
       questions.forEach((q, idx) => {
-        content += `\n${idx + 1}. ${q.question}`;
-        content += `\n   [Probability: ${Math.round(q.probability * 100)}% | Frequency: ${q.frequency}x]\n`;
+        content += `   ${idx + 1}. ${q.question}\n`;
+        content += `      [Probability: ${Math.round(q.probability * 100)}% | Frequency: ${q.frequency}x]\n\n`;
       });
     });
 
     // Part B
-    content += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    content += `PART B - Answer ANY ONE from each module (14 marks total)\n\n`;
+    content += '\n================================================================================\n\n';
+    content += 'PART B - Answer ANY ONE from each module (14 marks total)\n';
+    content += '--------------------------------------------------------------------------------\n\n';
 
     Object.entries(predictions.partB).forEach(([module, data]) => {
-      content += `\n${module} (Total: ${data.totalMarks} marks):\n`;
+      content += `${module} (Total: ${data.totalMarks} marks):\n`;
+      content += '\n';
       data.questions.forEach((q, idx) => {
-        content += `\n${idx + 1}. (${q.marks} marks) ${q.question}`;
-        content += `\n   [Probability: ${Math.round(q.probability * 100)}% | Frequency: ${q.frequency}x]\n`;
+        content += `   ${idx + 1}. (${q.marks} marks) ${q.question}\n`;
+        content += `      [Probability: ${Math.round(q.probability * 100)}% | Frequency: ${q.frequency}x]\n\n`;
       });
-      content += `\n   OR any other combination summing to 14 marks\n`;
+      content += '   OR any other combination summing to 14 marks\n\n';
     });
 
     // Statistics
-    content += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-    content += `STATISTICS:\n`;
-    content += `Total Questions Analyzed: ${predictions.stats.totalQuestions}\n`;
-    content += `Part A Questions: ${predictions.stats.partAQuestions}\n`;
-    content += `Part B Questions: ${predictions.stats.partBQuestions}\n`;
-    content += `Modules Covered: ${predictions.stats.modules}\n`;
+    content += '\n================================================================================\n\n';
+    content += 'STATISTICS:\n\n';
+    content += `   Total Questions Analyzed  : ${predictions.stats.totalQuestions}\n`;
+    content += `   Part A Questions          : ${predictions.stats.partAQuestions}\n`;
+    content += `   Part B Questions          : ${predictions.stats.partBQuestions}\n`;
+    content += `   Modules Covered           : ${predictions.stats.modules}\n\n`;
 
-    content += `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    content += `Generated by Smart Academic Assistant - Question Prediction System\n`;
-    content += `Based on historical question frequency, marks weightage, and recency analysis\n`;
-    content += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    content += '================================================================================\n';
+    content += 'Generated by Smart Academic Assistant - Question Prediction System\n';
+    content += 'Based on historical question frequency, marks weightage, and recency analysis\n';
+    content += '================================================================================\n';
 
     // Create and download file
-    const blob = new Blob([content], { type: 'text/plain' });
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -208,6 +209,18 @@ Generated: ${new Date(predictions.generatedAt).toLocaleDateString()}
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  // Export question paper as PDF with logo
+  const exportQuestionPaperAsPDF = async () => {
+    if (!predictions) return;
+
+    try {
+      await exportQuestionPredictionToPDF(predictions);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('Failed to export PDF. Please try again.');
+    }
   };
 
   // Export as JSON (alternative format)
@@ -376,9 +389,15 @@ Generated: ${new Date(predictions.generatedAt).toLocaleDateString()}
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="flex gap-2">
-                      <GradientButton onClick={exportQuestionPaper} size="sm">
-                        📄 Download Question Paper
+                      <GradientButton onClick={exportQuestionPaperAsPDF} size="sm">
+                        📄 Download PDF
                       </GradientButton>
+                      <button
+                        onClick={exportQuestionPaper}
+                        className="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors text-sm font-semibold"
+                      >
+                        📝 Export Text
+                      </button>
                       {hasFacultyAccess() && (
                         <>
                           <button

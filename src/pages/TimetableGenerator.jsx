@@ -464,7 +464,9 @@ const TimetableGenerator = () => {
         setConflicts(foundConflicts);
         
         if (foundConflicts.length > 0) {
-          alert(`Timetable generated with ${foundConflicts.length} conflict(s). Please review.`);
+          console.log(`⚠️ Timetable generated with ${foundConflicts.length} conflict(s):`, foundConflicts);
+        } else {
+          console.log('✅ Timetable generated successfully with no conflicts');
         }
       } else {
         alert(result.message);

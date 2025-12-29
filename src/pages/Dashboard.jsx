@@ -341,7 +341,7 @@ const Dashboard = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.6 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12"
+              className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-12"
             >
               <Card className="text-center">
                 <div className={`text-3xl font-bold mb-1 ${parseFloat(studentData.cgpa) < 5.5 ? 'text-red-400' : 'text-gradient'}`}>
@@ -433,14 +433,13 @@ const Dashboard = () => {
             </p>
           </motion.div>
 
-          {/* Services Grid */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.6 }}
           >
             <h2 className="text-2xl font-bold mb-6">Quick Access</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
               {services.map((service, index) => (
                 <motion.div
                   key={service.title}

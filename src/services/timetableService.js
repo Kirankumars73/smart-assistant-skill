@@ -205,12 +205,10 @@ const shuffleArray = (array) => {
  */
 const findEmptyPositions = (facultyName, className, count, isLab) => {
   if (!facultyTimetable[facultyName]) {
-    console.error('Faculty not found:', facultyName);
     return [];
   }
   
   if (!classTimetable[className]) {
-    console.error('Class not found:', className);
     return [];
   }
   
@@ -261,7 +259,6 @@ const findEmptyPositions = (facultyName, className, count, isLab) => {
     }
     
     if (emptyPositions.length < count) {
-      console.warn(`Not enough empty positions. Needed: ${count}, Found: ${emptyPositions.length}`);
       return false;
     }
   }
@@ -322,7 +319,7 @@ const assignRecursive = (allData, index = 0) => {
     }
   }
   
-  console.error(`Failed to assign ${subjectName} to ${className} by ${facultyName}`);
+  // Assignment failed - backtrack will try alternatives
   return false;
 };
 
@@ -347,7 +344,6 @@ const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
       }
       
       if (commonPositions.size === 0) {
-        console.error('No common empty positions found for lab');
         return false;
       }
       
@@ -376,16 +372,13 @@ const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
         }
       }
       
-      if (occurrence < limit) {
-        console.warn(`Could only assign ${occurrence} lab sessions out of ${limit} requested`);
-      }
+      // Some lab sessions couldn't be assigned - continue with what we have
       
       // Assign all positions to all faculties
       for (const { day, period } of assignedPositions) {
         for (const facultyName of faculties) {
           const result = manualAssign(facultyName, className, subjectName, day, period, true);
           if (!result) {
-            console.error(`Failed to assign lab slot at day ${day}, period ${period}`);
             return false;
           }
         }
@@ -412,7 +405,6 @@ const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
       }
       
       if (commonPositions.size === 0) {
-        console.error('No common empty positions found');
         return false;
       }
       
@@ -442,7 +434,6 @@ const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
         for (const facultyName of faculties) {
           const result = manualAssign(facultyName, className, subjectName, day, period, true);
           if (!result) {
-            console.error(`Failed to assign slot at day ${day}, period ${period}`);
             return false;
           }
         }
@@ -461,22 +452,18 @@ const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
  */
 const manualAssign = (facultyName, className, subjectName, day, period, isLab) => {
   if (day < 0 || day >= rows || period < 0 || period >= cols) {
-    console.error('Invalid day or period');
     return false;
   }
   
   if (!facultyTimetable[facultyName]) {
-    console.error('Faculty not found');
     return false;
   }
   
   if (!classTimetable[className]) {
-    console.error('Class not found');
     return false;
   }
   
   if (facultyTimetable[facultyName][day][period] !== 'FREE') {
-    console.warn(`Slot already occupied for ${facultyName} at day ${day}, period ${period}`);
     return false;
   }
   
@@ -512,17 +499,13 @@ export const generateTimetable = () => {
     // Step 2: Apply manual assignments (highest priority)
     const allManualData = getAllManualData();
     for (const { facultyName, className, subjectName, day, time } of allManualData) {
-      if (!manualAssign(facultyName, className, subjectName, day, time, false)) {
-        console.warn(`Failed to apply manual assignment: ${subjectName} for ${className}`);
-      }
+      manualAssign(facultyName, className, subjectName, day, time, false);
     }
     
     // Step 3: Apply lab assignments
     const allLabData = getAllLabData();
     for (const { limit, count, faculties, className, subjectName, isLab } of allLabData) {
-      if (!autoAssign(limit, count, faculties, className, subjectName, isLab)) {
-        console.warn(`Failed to assign lab: ${subjectName} for ${className}`);
-      }
+      autoAssign(limit, count, faculties, className, subjectName, isLab);
     }
     
     // Step 4: Apply regular assignments using backtracking

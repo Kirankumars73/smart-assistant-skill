@@ -1,6 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import clsx from 'clsx';
 
 const Card = ({ 
   children, 
@@ -10,26 +8,26 @@ const Card = ({
   onClick,
   ...props 
 }) => {
-  const CardWrapper = onClick ? motion.div : motion.div;
+  // Optimized classes for better performance
+  const baseClasses = "bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-lg";
+  
+  // Use CSS transforms (GPU accelerated) instead of box-shadow for hover
+  const hoverClasses = hover 
+    ? "transition-all duration-300 ease-out hover:border-pink-500/30 cursor-pointer will-change-transform hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(236,72,153,0.2)]"
+    : "";
+  
+  const gradientClasses = gradient 
+    ? "bg-gradient-to-br from-gray-900 to-gray-800 border-2 border-transparent" 
+    : "";
 
   return (
-    <CardWrapper
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, ease: 'easeOut' }}
-      whileHover={hover ? { y: -4, boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)' } : {}}
+    <div
       onClick={onClick}
-      className={clsx(
-        'bg-gray-800 rounded-xl p-6',
-        'shadow-lg transition-all duration-300',
-        hover && 'cursor-pointer',
-        gradient && 'border-2 border-transparent bg-gradient-to-br from-gray-800 to-gray-900',
-        className
-      )}
+      className={`${baseClasses} ${hoverClasses} ${gradientClasses} ${className}`}
       {...props}
     >
       {children}
-    </CardWrapper>
+    </div>
   );
 };
 
