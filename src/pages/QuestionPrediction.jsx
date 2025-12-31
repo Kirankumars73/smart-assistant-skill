@@ -6,13 +6,18 @@ import Navbar from '../components/layout/Navbar';
 import Card from '../components/ui/Card';
 import GradientButton from '../components/ui/GradientButton';
 import Input from '../components/ui/Input';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../hooks/useToast';
+import { useConfirm } from '../hooks/useConfirm';
 import { generatePredictions } from '../services/questionPredictionService';
 import { exportQuestionPredictionToPDF } from '../utils/questionPdfHelper';
 import * as XLSX from 'xlsx';
 
 const QuestionPrediction = () =>{
   const { userRole, hasFacultyAccess } = useAuth();
+  const showToast = useToast();
+  const { confirm, isOpen: isConfirmOpen, config: confirmConfig, handleConfirm, handleCancel } = useConfirm();
   const [predictions, setPredictions] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -217,9 +222,10 @@ const QuestionPrediction = () =>{
 
     try {
       await exportQuestionPredictionToPDF(predictions);
+      showToast('PDF exported successfully!', 'success');
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      alert('Failed to export PDF. Please try again.');
+      showToast('Failed to export PDF. Please try again.', 'error');
     }
   };
 
@@ -239,33 +245,35 @@ const QuestionPrediction = () =>{
   };
 
   // Delete prediction (faculty only)
-  const handleDeletePrediction = async (predictionId) => {
-    if (!hasFacultyAccess()) return;
+const handleDeletePrediction = async (predictionId) => {
+  if (!hasFacultyAccess()) return;
 
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this prediction?\n\n' +
-      'This action cannot be undone. The prediction will be permanently removed.'
-    );
+  const confirmed = await confirm({
+    title: 'Delete Prediction',
+    message: 'Are you sure you want to delete this prediction? This action cannot be undone. The prediction will be permanently removed.',
+    confirmText: 'Delete',
+    type: 'danger'
+  });
 
-    if (!confirmed) return;
+  if (!confirmed) return;
 
-    try {
-      await deleteDoc(doc(db, 'questions', predictionId));
-      
-      // If currently viewing this prediction, clear it
-      if (predictions && predictions.id === predictionId) {
-        setPredictions(null);
-      }
-      
-      // Refresh the list
-      await fetchSavedPredictions();
-      
-      alert('Prediction deleted successfully!');
-    } catch (err) {
-      console.error('Error deleting prediction:', err);
-      alert('Error deleting prediction. Please try again.');
+  try {
+    await deleteDoc(doc(db, 'questions', predictionId));
+    
+    // If currently viewing this prediction, clear it
+    if (predictions && predictions.id === predictionId) {
+      setPredictions(null);
     }
-  };
+    
+    // Refresh the list
+    await fetchSavedPredictions();
+    
+    showToast('Prediction deleted successfully!', 'success');
+  } catch (err) {
+    console.error('Error deleting prediction:', err);
+    showToast('Error deleting prediction. Please try again.', 'error');
+  }
+};
 
   return (
     <div className="min-h-screen bg-black">
@@ -687,6 +695,17 @@ const QuestionPrediction = () =>{
           )}
         </div>
       </div>
+      
+      {/* Confirm Dialog for Delete */}
+      <ConfirmDialog
+        isOpen={isConfirmOpen}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        confirmText={confirmConfig.confirmText}
+        type={confirmConfig.type}
+      />
     </div>
   );
 };

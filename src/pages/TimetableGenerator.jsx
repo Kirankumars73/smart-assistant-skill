@@ -3,11 +3,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../hooks/useToast';
+import { useConfirm } from '../hooks/useConfirm';
 import Navbar from '../components/layout/Navbar';
 import Card from '../components/ui/Card';
 import GradientButton from '../components/ui/GradientButton';
 import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import * as TimetableService from '../services/timetableService';
 import { 
   exportToExcel, 
@@ -21,6 +24,8 @@ import { exportFacultyTimetablesToPDF, exportClassTimetablesToPDF } from '../uti
 
 const TimetableGenerator = () => {
   const { currentUser, userRole } = useAuth();
+  const showToast = useToast();
+  const { confirm, isOpen: isConfirmOpen, config: confirmConfig, handleConfirm, handleCancel } = useConfirm();
   
   // Wizard step management
   const [currentStep, setCurrentStep] = useState(1);
@@ -118,7 +123,10 @@ const TimetableGenerator = () => {
       const matchesSemester = !searchFilters.semester || tt.semester?.toLowerCase().includes(searchFilters.semester.toLowerCase());
       const matchesDepartment = !searchFilters.department || tt.department?.toLowerCase().includes(searchFilters.department.toLowerCase());
       const matchesClass = !searchFilters.className || 
-        tt.classes?.some(c => c.toLowerCase().includes(searchFilters.className.toLowerCase()));
+        tt.classes?.some(c => {
+          const className = typeof c === 'string' ? c : c.name;
+          return className?.toLowerCase().includes(searchFilters.className.toLowerCase());
+        });
       
       return matchesSemester && matchesDepartment && matchesClass;
     });
@@ -175,20 +183,20 @@ const TimetableGenerator = () => {
     
     try {
       await deleteDoc(doc(db, 'timetables', timetableToDelete));
-      alert('Timetable deleted successfully!');
+      showToast('Timetable deleted successfully!', 'success');
       fetchSavedTimetables();
       setDeleteModalOpen(false);
       setTimetableToDelete(null);
     } catch (error) {
       console.error('Error deleting timetable:', error);
-      alert('Failed to delete timetable: ' + error.message);
+      showToast('Failed to delete timetable: ' + error.message, 'error');
     }
   };
   
   // Update existing timetable
   const updateTimetable = async () => {
     if (!generatedTimetable || !selectedTimetable) {
-      alert('No timetable to update');
+      showToast('No timetable to update', 'warning');
       return;
     }
     
@@ -213,12 +221,12 @@ const TimetableGenerator = () => {
       };
       
       await updateDoc(doc(db, 'timetables', selectedTimetable.id), timetableData);
-      alert('Timetable updated successfully!');
+      showToast('Timetable updated successfully!', 'success');
       fetchSavedTimetables();
       setSelectedTimetable(null);
     } catch (error) {
       console.error('Error updating timetable:', error);
-      alert('Failed to update timetable: ' + error.message);
+      showToast('Failed to update timetable: ' + error.message, 'error');
     }
   };
   
@@ -287,11 +295,11 @@ const TimetableGenerator = () => {
       setNewClass({ name: '', department: '', semester: '', scheme: '', academicYear: '' });
       setCurrentClassSubjects([]);
     } else if (!newClass.name.trim()) {
-      alert('Please enter class name');
+      showToast('Please enter class name', 'warning');
     } else if (!newClass.department || !newClass.semester || !newClass.scheme || !newClass.academicYear) {
-      alert('Please fill all class details (department, semester, scheme, academic year)');
+      showToast('Please fill all class details (department, semester, scheme, academic year)', 'warning');
     } else if (currentClassSubjects.length === 0) {
-      alert('Please add at least one subject for this class');
+      showToast('Please add at least one subject for this class', 'warning');
     }
   };
   
@@ -395,7 +403,7 @@ const TimetableGenerator = () => {
         assignments: assignments
       });
       if (!validation.valid) {
-        alert('Configuration errors:\n' + validation.errors.join('\n'));
+        showToast('Configuration errors: ' + validation.errors.join(', '), 'error');
         setIsGenerating(false);
         return;
       }
@@ -469,11 +477,11 @@ const TimetableGenerator = () => {
           console.log('✅ Timetable generated successfully with no conflicts');
         }
       } else {
-        alert(result.message);
+        showToast(result.message, 'error');
       }
     } catch (error) {
       console.error('Error generating timetable:', error);
-      alert('Failed to generate timetable: ' + error.message);
+      showToast('Failed to generate timetable: ' + error.message, 'error');
     } finally {
       setIsGenerating(false);
     }
@@ -529,7 +537,7 @@ const TimetableGenerator = () => {
   // Save to Firestore
   const saveTimetable = async () => {
     if (!generatedTimetable) {
-      alert('Please generate a timetable first');
+      showToast('Please generate a timetable first', 'warning');
       return;
     }
     
@@ -561,11 +569,11 @@ const TimetableGenerator = () => {
       };
       
       await addDoc(collection(db, 'timetables'), timetableData);
-      alert('Timetable saved successfully!');
+      showToast('Timetable saved successfully!', 'success');
       fetchSavedTimetables();
     } catch (error) {
       console.error('Error saving timetable:', error);
-      alert('Failed to save timetable: ' + error.message);
+      showToast('Failed to save timetable: ' + error.message, 'error');
     } finally {
       setIsSaving(false);
     }
@@ -645,7 +653,7 @@ const TimetableGenerator = () => {
       }
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      alert('Failed to export PDF: ' + error.message);
+      showToast('Failed to export PDF: ' + error.message, 'error');
     }
   };
   
@@ -740,15 +748,17 @@ const TimetableGenerator = () => {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold mb-6">Step 2: Add Faculty Members</h2>
       
-      <div className="flex gap-4">
-        <Input
-          label="Faculty Name"
-          placeholder="Enter faculty name"
-          value={newFaculty}
-          onChange={(e) => setNewFaculty(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && addFaculty()}
-        />
-        <GradientButton onClick={addFaculty} className="self-end">
+      <div className="flex gap-4 items-center">
+        <div className="flex-1">
+          <Input
+            label="Faculty Name"
+            placeholder="Enter faculty name"
+            value={newFaculty}
+            onChange={(e) => setNewFaculty(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && addFaculty()}
+          />
+        </div>
+        <GradientButton onClick={addFaculty} className="mt-6">
           Add Faculty
         </GradientButton>
       </div>
@@ -1386,18 +1396,7 @@ const TimetableGenerator = () => {
             </button>
           </div>
           
-          {conflicts.length > 0 && (
-            <div className="bg-red-500/10 border border-red-500 rounded-lg p-4">
-              <h3 className="text-red-500 font-bold mb-2">⚠️ Conflicts Detected ({conflicts.length})</h3>
-              <ul className="text-red-400 text-sm space-y-1">
-                {conflicts.map((conflict, index) => (
-                  <li key={index}>
-                    {conflict.type}: {conflict.faculty || conflict.class} - Day {conflict.day}, Period {conflict.period}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          {/* Conflicts are logged to console for debugging - not shown to clients */}
           
           <div className="bg-green-500/10 border border-green-500 rounded-lg p-4">
             <h3 className="text-green-500 font-bold mb-2">✅ {generatedTimetable.message}</h3>
@@ -1457,6 +1456,24 @@ const TimetableGenerator = () => {
             >
               🔄 Regenerate
             </GradientButton>
+            <GradientButton 
+              onClick={async () => {
+                const confirmed = await confirm({
+                  title: 'Discard Timetable',
+                  message: 'Are you sure you want to discard this timetable? This action cannot be undone.',
+                  confirmText: 'Discard',
+                  type: 'danger'
+                });
+                if (confirmed) {
+                  setGeneratedTimetable(null);
+                  setConflicts([]);
+                }
+              }}
+              variant="danger"
+              className="ml-auto"
+            >
+              🗑️ Discard
+            </GradientButton>
           </div>
         </div>
       )}
@@ -1501,23 +1518,7 @@ const TimetableGenerator = () => {
     </div>
   );
   
-  // Check for faculty/admin access
-  if (userRole !== 'faculty' && userRole !== 'admin') {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-pink-900">
-        <Navbar />
-        <div className="container mx-auto px-4 py-16">
-          <Card className="max-w-md mx-auto text-center">
-            <div className="text-6xl mb-4">🔒</div>
-            <h2 className="text-2xl font-bold mb-4">Access Restricted</h2>
-            <p className="text-gray-400">
-              Only faculty and administrators can access the timetable generator.
-            </p>
-          </Card>
-        </div>
-      </div>
-    );
-  }
+  // Students have read-only access to view class timetables
   
   return (
     <div className="min-h-screen bg-black">
@@ -1536,7 +1537,9 @@ const TimetableGenerator = () => {
             </h1>
             <p className="text-xl text-gray-400">
               {viewMode === 'view' 
-                ? 'Browse and search saved timetables'
+                ? userRole === 'student' 
+                  ? 'Search and view your class timetables by class name and semester'
+                  : 'Browse and search saved timetables'
                 : 'Create clash-free schedules using advanced backtracking algorithms'
               }
             </p>
@@ -1633,7 +1636,7 @@ const TimetableGenerator = () => {
                           >
                             👁️ View
                           </GradientButton>
-                          {(userRole === 'faculty' || userRole === 'admin') && (
+                          {userRole === 'student' ? null : (
                             <>
                               <GradientButton
                                 onClick={() => loadTimetableForEdit(timetable)}
@@ -1752,6 +1755,17 @@ const TimetableGenerator = () => {
           </div>
         </div>
       </Modal>
+      
+      {/* Discard Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isConfirmOpen}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+        title={confirmConfig.title}
+        message={confirmConfig.message}
+        confirmText={confirmConfig.confirmText}
+        type={confirmConfig.type}
+      />
     </div>
   );
 };

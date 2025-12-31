@@ -1342,11 +1342,13 @@ const StudentRecords = () => {
                 className="hidden"
                 id="bulk-upload-input"
               />
-              <label htmlFor="bulk-upload-input">
-                <GradientButton as="span" className="cursor-pointer">
-                  Choose File
-                </GradientButton>
-              </label>
+              <GradientButton 
+                onClick={() => document.getElementById('bulk-upload-input')?.click()}
+                type="button"
+                className="cursor-pointer"
+              >
+                Choose File
+              </GradientButton>
 
               <p className="text-xs text-gray-500">
                 Supports: .xlsx, .xls, .csv (Max 1000 rows recommended)

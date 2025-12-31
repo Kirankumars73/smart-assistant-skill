@@ -3,11 +3,13 @@ import { motion } from 'framer-motion';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db, USER_ROLES } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '../hooks/useToast';
 import Navbar from '../components/layout/Navbar';
 import Card from '../components/ui/Card';
 
 const AdminPanel = () => {
   const { currentUser, isAdmin } = useAuth();
+  const showToast = useToast();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(null);
@@ -65,7 +67,7 @@ const AdminPanel = () => {
       setTimeout(() => fetchUsers(), 500);
     } catch (error) {
       console.error('Error updating user role:', error);
-      alert('Failed to update user role. Check console for details.');
+      showToast('Failed to update user role. Check console for details.', 'error');
     } finally {
       setUpdating(null);
     }
