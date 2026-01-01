@@ -42,7 +42,8 @@ googleProvider.setCustomParameters({
 export const USER_ROLES = {
   ADMIN: 'admin',
   FACULTY: 'faculty',
-  STUDENT: 'student'
+  STUDENT: 'student',
+  PARENT: 'parent'
 };
 
 // Helper function to check if email is Gmail

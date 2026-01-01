@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 
-const ProtectedRoute = ({ children, requiredRole = null, requireFacultyAccess = false, requireAdmin = false }) => {
+const ProtectedRoute = ({ children, requiredRole = null, requireFacultyAccess = false, requireAdmin = false, requireParent = false }) => {
   const { currentUser, userRole, loading } = useAuth();
 
   if (loading) {
@@ -27,6 +27,11 @@ const ProtectedRoute = ({ children, requiredRole = null, requireFacultyAccess = 
 
   // Check for admin-only access
   if (requireAdmin && userRole !== 'admin') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
+  // Check for parent-only access
+  if (requireParent && userRole !== 'parent') {
     return <Navigate to="/dashboard" replace />;
   }
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,6 +12,12 @@ import { getInternalMarks } from '../utils/subjectHelpers';
 
 const Dashboard = () => {
   const { userRole, currentUser } = useAuth();
+
+  // Redirect parents to their own dashboard
+  if (userRole === 'parent') {
+    return <Navigate to="/parent-dashboard" replace />;
+  }
+
   const [studentData, setStudentData] = useState(null);
   const [isRegisteredStudent, setIsRegisteredStudent] = useState(false);
   const [loading, setLoading] = useState(true);

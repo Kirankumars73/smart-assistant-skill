@@ -11,6 +11,7 @@ import TimetableGenerator from './pages/TimetableGenerator';
 import StudentRecords from './pages/StudentRecords';
 import QuestionPrediction from './pages/QuestionPrediction';
 import AdminPanel from './pages/AdminPanel';
+import ParentDashboard from './pages/ParentDashboard';
 import ChatbotWidget from './components/chatbot/ChatbotWidget';
 import './index.css';
 
@@ -68,6 +69,16 @@ function AppContent() {
           element={
             <ProtectedRoute requireAdmin>
               <AdminPanel />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Parent Dashboard Route */}
+        <Route
+          path="/parent-dashboard"
+          element={
+            <ProtectedRoute requireParent>
+              <ParentDashboard />
             </ProtectedRoute>
           }
         />

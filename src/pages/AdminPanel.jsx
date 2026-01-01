@@ -81,6 +81,8 @@ const AdminPanel = () => {
         return 'from-purple-500 to-indigo-500';
       case USER_ROLES.STUDENT:
         return 'from-blue-500 to-cyan-500';
+      case USER_ROLES.PARENT:  // NEW
+        return 'from-green-500 to-emerald-500';
       default:
         return 'from-gray-500 to-gray-600';
     }
@@ -94,6 +96,8 @@ const AdminPanel = () => {
         return '⭐';
       case USER_ROLES.STUDENT:
         return '👤';
+      case USER_ROLES.PARENT:  // NEW
+        return '👨‍👩‍👧‍👦';
       default:
         return '❓';
     }
@@ -110,7 +114,8 @@ const AdminPanel = () => {
     total: users.length,
     admins: users.filter(u => u.role === USER_ROLES.ADMIN).length,
     faculty: users.filter(u => u.role === USER_ROLES.FACULTY).length,
-    students: users.filter(u => u.role === USER_ROLES.STUDENT).length
+    students: users.filter(u => u.role === USER_ROLES.STUDENT).length,
+    parents: users.filter(u => u.role === USER_ROLES.PARENT).length  // NEW
   };
 
   if (!isAdmin()) {
@@ -152,7 +157,8 @@ const AdminPanel = () => {
             { label: 'Total Users', value: stats.total, icon: '👥', gradient: 'from-blue-500 to-cyan-500' },
             { label: 'Admins', value: stats.admins, icon: '👑', gradient: 'from-orange-500 to-red-500' },
             { label: 'Faculty', value: stats.faculty, icon: '⭐', gradient: 'from-purple-500 to-indigo-500' },
-            { label: 'Students', value: stats.students, icon: '👤', gradient: 'from-green-500 to-emerald-500' }
+            { label: 'Students', value: stats.students, icon: '👤', gradient: 'from-teal-500 to-cyan-500' },
+            { label: 'Parents', value: stats.parents, icon: '👨‍👩‍👧‍👦', gradient: 'from-green-500 to-emerald-500' }
           ].map((stat, index) => (
             <motion.div
               key={stat.label}
@@ -175,7 +181,7 @@ const AdminPanel = () => {
         <Card className="mb-6">
           <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
             <div className="flex gap-2 flex-wrap">
-              {['all', USER_ROLES.ADMIN, USER_ROLES.FACULTY, USER_ROLES.STUDENT].map(roleFilter => (
+              {['all', USER_ROLES.ADMIN, USER_ROLES.FACULTY, USER_ROLES.STUDENT, USER_ROLES.PARENT].map(roleFilter => (
                 <button
                   key={roleFilter}
                   onClick={() => setFilter(roleFilter)}
@@ -270,6 +276,15 @@ const AdminPanel = () => {
                           )}
                         </div>
                         <p className="text-gray-400 text-sm mb-2">{user.email}</p>
+                        
+                        {/* Show linked student for parents */}
+                        {user.role === USER_ROLES.PARENT && user.linkedStudentId && (
+                          <div className="text-xs text-green-400 flex items-center gap-1">
+                            <span>🔗</span>
+                            <span>Linked to: {user.linkedStudentId}</span>
+                          </div>
+                        )}
+                        
                         <div className="flex items-center gap-4 text-xs text-gray-500">
                           <span>Joined: {new Date(user.createdAt).toLocaleDateString()}</span>
                           <span>Last login: {new Date(user.lastLogin).toLocaleDateString()}</span>
@@ -295,6 +310,7 @@ const AdminPanel = () => {
                         >
                           <option value={USER_ROLES.FACULTY}>⭐ Faculty</option>
                           <option value={USER_ROLES.STUDENT}>👤 Student</option>
+                          <option value={USER_ROLES.PARENT}>👨‍👩‍👧‍👦 Parent</option>
                         </select>
                       )}
                       

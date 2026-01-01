@@ -20,15 +20,18 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
+  const [userProfile, setUserProfile] = useState(null); // NEW: Full user profile from Firestore
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch user role from Firestore
+  // Fetch user role and profile from Firestore
   const fetchUserRole = async (user) => {
     try {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
-        return userDoc.data().role || USER_ROLES.STUDENT;
+        const profileData = userDoc.data();
+        setUserProfile(profileData); // Store full profile
+        return profileData.role || USER_ROLES.STUDENT;
       }
       // Default role for new users
       return USER_ROLES.STUDENT;
@@ -133,6 +136,9 @@ export const AuthProvider = ({ children }) => {
   // Check if user is student
   const isStudent = () => hasRole(USER_ROLES.STUDENT);
 
+  // Check if user is parent (NEW)
+  const isParent = () => hasRole(USER_ROLES.PARENT);
+
   // Check if user has faculty or admin access
   const hasFacultyAccess = () => isAdmin() || isFaculty();
 
@@ -179,6 +185,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     currentUser,
     userRole,
+    userProfile,  // NEW: Expose full user profile
     loading,
     error,
     signInWithGoogle,
@@ -187,6 +194,7 @@ export const AuthProvider = ({ children }) => {
     isAdmin,
     isFaculty,
     isStudent,
+    isParent,  // NEW
     hasFacultyAccess
   };
 

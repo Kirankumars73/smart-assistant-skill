@@ -34,6 +34,11 @@ service cloud.firestore {
       return isSignedIn() && getUserRole() == 'student';
     }
     
+    // Check if user is parent
+    function isParent() {
+      return isSignedIn() && getUserRole() == 'parent';
+    }
+    
     // Check if user has faculty-level access (admin or faculty)
     function hasFacultyAccess() {
       return isAdmin() || isFaculty();
@@ -74,10 +79,14 @@ service cloud.firestore {
       
       // Faculty/Admin can read all records
       // Students can read their own record (matching studentId field)
+      // Parents can read their linked student's record
       allow read: if hasFacultyAccess() || 
                      (isStudent() && 
                       get(/databases/$(database)/documents/students/$(studentId)).data.studentId == 
-                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.studentId);
+                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.studentId) ||
+                     (isParent() && 
+                      get(/databases/$(database)/documents/students/$(studentId)).data.studentId == 
+                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedStudentId);
       
       // Only Faculty/Admin can update student records
       allow update: if hasFacultyAccess();
