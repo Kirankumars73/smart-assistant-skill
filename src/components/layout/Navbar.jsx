@@ -1,13 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
+import { subscribeToNotificationCount } from '../../services/notificationService';
 
 const Navbar = () => {
   const { currentUser, userRole, signOut, hasFacultyAccess } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
   const location = useLocation();
+
+  // Subscribe to notification count for faculty/admin
+  useEffect(() => {
+    if (hasFacultyAccess()) {
+      console.log('Setting up notification listener...');
+      const unsubscribe = subscribeToNotificationCount('pending', (count) => {
+        console.log('Notification count updated:', count);
+        setNotificationCount(count);
+      });
+      return unsubscribe;
+    }
+  }, [hasFacultyAccess]);
 
   const isActive = (path) => location.pathname === path;
 
@@ -68,6 +82,20 @@ const Navbar = () => {
             <div className="hidden sm:block px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-400 border border-purple-500/30">
               {userRole?.toUpperCase()}
             </div>
+
+            {/* Notification Bell (Faculty/Admin only) */}
+            {hasFacultyAccess() && (
+              <Link to="/notifications" className="relative p-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                {notificationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold animate-pulse">
+                    {notificationCount}
+                  </span>
+                )}
+              </Link>
+            )}
 
             {/* Profile Dropdown */}
             <div className="relative">

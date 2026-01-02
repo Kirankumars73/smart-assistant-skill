@@ -9,7 +9,9 @@ import Modal from '../components/ui/Modal';
 import Input from '../components/ui/Input';
 import GradientButton from '../components/ui/GradientButton';
 import SubjectInputList from '../components/forms/SubjectInputList';
+import BacklogPaperManager from '../components/forms/BacklogPaperManager';
 import { getInternalMarks, createEmptySubject, validateSubjects } from '../utils/subjectHelpers';
+import { getBacklogCount, createEmptyBacklogPaper } from '../utils/backlogHelpers';
 import { useToast } from '../hooks/useToast';
 import { useConfirm } from '../hooks/useConfirm';
 import { getErrorMessage, getSuccessMessage } from '../utils/errorMessages';
@@ -39,6 +41,7 @@ const StudentRecords = () => {
     semester: '',
     cgpa: '',
     backPapers: '',
+    backlogPapers: [],  // NEW: Array of backlog paper objects
     internalMarks: '',  // Keep for backward compatibility
     subjects: [],       // New: Array of subject objects
     email: '',
@@ -125,10 +128,14 @@ const StudentRecords = () => {
     }
 
     try {
+      // Calculate backPapers count from backlogPapers array
+      const backlogCount = formData.backlogPapers.length;
+      
       const studentData = {
         ...formData,
         cgpa: parseFloat(formData.cgpa),
-        backPapers: parseInt(formData.backPapers),
+        backPapers: backlogCount,  // Auto-calculated from array
+        backlogPapers: formData.backlogPapers,  // NEW: Save backlog papers array
         internalMarks: parseFloat(formData.internalMarks),  // Keep for backward compatibility
         semester: parseInt(formData.semester),
         subjects: formData.subjects,  // Save subjects array
@@ -163,6 +170,7 @@ const StudentRecords = () => {
       semester: student.semester?.toString() || '',
       cgpa: student.cgpa?.toString() || '',
       backPapers: student.backPapers?.toString() || '',
+      backlogPapers: student.backlogPapers || [],  // NEW: Load backlog papers array
       internalMarks: student.internalMarks?.toString() || '',
       subjects: student.subjects || [createEmptySubject()],  // Load subjects or create default
       email: student.email || '',
@@ -217,6 +225,7 @@ const StudentRecords = () => {
       semester: '',
       cgpa: '',
       backPapers: '',
+      backlogPapers: [],  // NEW: Reset backlog papers
       internalMarks: '',
       subjects: [],  // Reset subjects
       email: '',
@@ -1178,14 +1187,14 @@ const StudentRecords = () => {
               onChange={(e) => setFormData({ ...formData, cgpa: e.target.value })}
               required
             />
-            <Input
-              label="Back Papers"
-              type="number"
-              min="0"
-              value={formData.backPapers}
-              onChange={(e) => setFormData({ ...formData, backPapers: e.target.value })}
-              required
-            />
+            
+            {/* Backlog Papers Section - NEW */}
+            <div className="col-span-2">
+              <BacklogPaperManager
+                backlogPapers={formData.backlogPapers}
+                onChange={(backlogPapers) => setFormData({ ...formData, backlogPapers })}
+              />
+            </div>
             
             {/* Subjects Section - NEW */}
             <div className="col-span-2">

@@ -12,6 +12,7 @@ import StudentRecords from './pages/StudentRecords';
 import QuestionPrediction from './pages/QuestionPrediction';
 import AdminPanel from './pages/AdminPanel';
 import ParentDashboard from './pages/ParentDashboard';
+import NotificationsPage from './pages/NotificationsPage';
 import ChatbotWidget from './components/chatbot/ChatbotWidget';
 import './index.css';
 
@@ -79,6 +80,16 @@ function AppContent() {
           element={
             <ProtectedRoute requireParent>
               <ParentDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Notifications Page (Faculty/Admin only) */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute requireFacultyAccess>
+              <NotificationsPage />
             </ProtectedRoute>
           }
         />

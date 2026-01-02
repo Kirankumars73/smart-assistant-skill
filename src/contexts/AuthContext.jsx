@@ -142,6 +142,18 @@ export const AuthProvider = ({ children }) => {
   // Check if user has faculty or admin access
   const hasFacultyAccess = () => isAdmin() || isFaculty();
 
+  // Refresh user profile from Firestore (useful after updates like parent linking)
+  const refreshUserProfile = async () => {
+    if (!currentUser) return;
+    
+    try {
+      const role = await fetchUserRole(currentUser);
+      setUserRole(role);
+    } catch (error) {
+      console.error('Error refreshing user profile:', error);
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && isGmailAccount(user.email)) {
@@ -159,14 +171,20 @@ export const AuthProvider = ({ children }) => {
             console.error('Error creating user profile:', err)
           );
         } else {
-          // For other users, set default role first, then update from Firestore
-          setUserRole(USER_ROLES.STUDENT); // Default
+          // For other users, DON'T set default role - wait for Firestore
+          // This prevents showing wrong dashboard while loading
           
-          // Try to create profile and fetch role in background (non-blocking)
+          // Fetch role from Firestore (blocking to prevent wrong redirect)
           createUserProfile(user)
             .then(() => fetchUserRole(user))
-            .then(role => setUserRole(role))
-            .catch(err => console.error('Error creating user profile:', err));
+            .then(role => {
+              console.log('User role fetched:', role);
+              setUserRole(role);
+            })
+            .catch(err => {
+              console.error('Error fetching user role:', err);
+              setUserRole(USER_ROLES.STUDENT); // Fallback
+            });
         }
         
         // Set loading=false immediately - don't wait for Firestore
@@ -195,7 +213,8 @@ export const AuthProvider = ({ children }) => {
     isFaculty,
     isStudent,
     isParent,  // NEW
-    hasFacultyAccess
+    hasFacultyAccess,
+    refreshUserProfile  // NEW: Refresh user profile from Firestore
   };
 
   return (

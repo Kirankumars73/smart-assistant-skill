@@ -201,6 +201,53 @@ const shuffleArray = (array) => {
 };
 
 /**
+ * Check if it's safe to assign a period without creating consecutive different classes
+ * This prevents teacher fatigue by ensuring breaks between teaching different classes
+ * @param {string} facultyName - Teacher name
+ * @param {string} className - Class being assigned
+ * @param {number} day - Day index
+ * @param {number} period - Period index
+ * @param {boolean} isLabAssignment - If true, skip this check (labs are naturally consecutive)
+ * @returns {boolean} True if safe to assign (no different class in adjacent periods)
+ */
+const isSafeFromConsecutiveDifferentClasses = (
+  facultyName, 
+  className, 
+  day, 
+  period,
+  isLabAssignment = false
+) => {
+  // Labs are exempt from this check - they need consecutive periods
+  if (isLabAssignment) return true;
+  
+  if (!facultyTimetable[facultyName] || !facultyTimetable[facultyName][day]) {
+    return true;
+  }
+  
+  const facultySchedule = facultyTimetable[facultyName][day];
+  
+  // Check previous period (period - 1)
+  if (period > 0) {
+    const prevSlot = facultySchedule[period - 1];
+    // If previous period has a DIFFERENT class (not FREE and not same class), block this assignment
+    if (prevSlot !== 'FREE' && prevSlot !== className) {
+      return false; // Would create consecutive different classes - prevent teacher fatigue!
+    }
+  }
+  
+  // Check next period (period + 1)
+  if (period < cols - 1) {
+    const nextSlot = facultySchedule[period + 1];
+    // If next period has a DIFFERENT class (not FREE and not same class), block this assignment
+    if (nextSlot !== 'FREE' && nextSlot !== className) {
+      return false; // Would create consecutive different classes - prevent teacher fatigue!
+    }
+  }
+  
+  return true; // Safe to assign - teacher gets proper rest or teaches same class consecutively
+};
+
+/**
  * Find empty positions for faculty and class
  */
 const findEmptyPositions = (facultyName, className, count, isLab) => {
@@ -246,12 +293,15 @@ const findEmptyPositions = (facultyName, className, count, isLab) => {
     }
   } else {
     // For regular subjects, find random positions (max 2 per day)
+    // Also check to prevent consecutive different classes for teacher health
     for (let i = 0; i < rows; i++) {
       let limitPerDay = 0;
       const randomIndices = shuffleArray([...Array(cols).keys()]);
       
       for (const j of randomIndices) {
-        if (limitPerDay < 2 && isSlotAvailable(facultyName, className, i, j)) {
+        if (limitPerDay < 2 && 
+            isSlotAvailable(facultyName, className, i, j) &&
+            isSafeFromConsecutiveDifferentClasses(facultyName, className, i, j, false)) {
           emptyPositions.push({ day: i, period: j });
           limitPerDay++;
         }
@@ -296,7 +346,8 @@ const assignRecursive = (allData, index = 0) => {
     for (const { day, period } of positions) {
       if (successCount >= limit) break;
       
-      if (isSlotAvailable(facultyName, className, day, period)) {
+      if (isSlotAvailable(facultyName, className, day, period) &&
+          isSafeFromConsecutiveDifferentClasses(facultyName, className, day, period, false)) {
         const result = addData(facultyName, day, period, className, subjectName);
         if (result.success) {
           assignmentsMade.push({ day, period });

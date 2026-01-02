@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { getLinkedStudentData, hasLinkedStudent } from '../utils/parentHelpers';
 import { getInternalMarks } from '../utils/subjectHelpers';
+import { getBacklogStatusColor, getBacklogStatusText } from '../utils/backlogHelpers';
 import Navbar from '../components/layout/Navbar';
 import Card from '../components/ui/Card';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
@@ -13,7 +14,7 @@ import ParentOnboarding from '../components/parent/ParentOnboarding';
  * View-only dashboard for parents to monitor their child's academic progress
  */
 function ParentDashboard() {
-  const { userProfile, currentUser } = useAuth();
+  const { userProfile, currentUser, refreshUserProfile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [student, setStudent] = useState(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -53,9 +54,12 @@ function ParentDashboard() {
     }
   };
 
-  const handleOnboardingComplete = (linkedStudent) => {
-    setStudent(linkedStudent);
-    setShowOnboarding(false);
+  const handleOnboardingComplete = async (linkedStudent) => {
+    // Refresh the user profile from Firestore to get the updated linkedStudentId
+    await refreshUserProfile();
+    
+    // The useEffect will trigger automatically when userProfile updates
+    // This will reload student data and hide onboarding
   };
 
   // Pass/Fail Prediction Algorithm (same as StudentRecords)
@@ -238,6 +242,49 @@ function ParentDashboard() {
             </Card>
           </motion.div>
         </div>
+
+        {/* Detailed Backlog Papers Section */}
+        {student.backlogPapers && student.backlogPapers.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold text-white mb-4">📚 Backlog Papers Details</h3>
+              <div className="space-y-3">
+                {student.backlogPapers.map((paper, index) => (
+                  <div 
+                    key={index}
+                    className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg border border-gray-700"
+                  >
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-white">{paper.subjectName}</h4>
+                      <p className="text-sm text-gray-400">
+                        {paper.subjectCode} • Semester {paper.semester}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getBacklogStatusColor(paper.status)}`}>
+                        {getBacklogStatusText(paper.status)}
+                      </span>
+                      {paper.status === 'clearance_requested' && (
+                        <span className="text-sm text-blue-400">
+                          ⏳ Pending approval
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <p className="text-sm text-blue-400">
+                  💡 <strong>Note:</strong> Your child can request clearance for these papers through their student dashboard.
+                </p>
+              </div>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Prediction & Status */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

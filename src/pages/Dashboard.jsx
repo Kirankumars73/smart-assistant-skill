@@ -1,17 +1,54 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, Navigate } from 'react-router-dom';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Card from '../components/ui/Card';
 import Navbar from '../components/layout/Navbar';
 import Input from '../components/ui/Input';
 import GradientButton from '../components/ui/GradientButton';
+import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { getInternalMarks } from '../utils/subjectHelpers';
+import { getBacklogStatusColor, getBacklogStatusText, canRequestClearance } from '../utils/backlogHelpers';
+import { createClearanceNotification, hasPendingClearanceRequest } from '../services/notificationService';
+import { useToast } from '../hooks/useToast';
 
 const Dashboard = () => {
   const { userRole, currentUser } = useAuth();
+  const { showToast } = useToast();
+
+  // Show beautiful loading animation while role is being fetched
+  if (currentUser && userRole === null) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center"
+        >
+          <motion.div
+            animate={{ 
+              rotate: 360,
+              scale: [1, 1.2, 1]
+            }}
+            transition={{ 
+              rotate: { duration: 2, repeat: Infinity, ease: "linear" },
+              scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
+            }}
+            className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r from-orange-500 via-pink-500 to-purple-500"
+          />
+          <motion.h2 
+            animate={{ opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="text-2xl font-bold text-gradient"
+          >
+            Loading your dashboard...
+          </motion.h2>
+        </motion.div>
+      </div>
+    );
+  }
 
   // Redirect parents to their own dashboard
   if (userRole === 'parent') {
@@ -25,6 +62,7 @@ const Dashboard = () => {
   const [searchResult, setSearchResult] = useState(null);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState('');
+  const [requestingClearance, setRequestingClearance] = useState(null);
 
   // Check if student is registered by email
   useEffect(() => {
@@ -86,6 +124,51 @@ const Dashboard = () => {
       setSearchError('Error searching for student. Please try again.');
     } finally {
       setSearching(false);
+    }
+  };
+
+  // Handle clearance request for unregistered students
+  const handleRequestClearance = async (paper, student) => {
+    try {
+      setRequestingClearance(paper.subjectCode);
+      
+      // Check if already requested
+      const alreadyRequested = await hasPendingClearanceRequest(student.studentId, paper.subjectCode);
+      if (alreadyRequested) {
+        showToast('Clearance already requested for this paper', 'warning');
+        return;
+      }
+
+      // Create notification
+      await createClearanceNotification(
+        student.studentId,
+        student.name,
+        paper,
+        student.id
+      );
+
+      // Update paper status locally
+      const updatedPapers = student.backlogPapers.map(p => 
+        p.subjectCode === paper.subjectCode 
+          ? { ...p, status: 'clearance_requested', requestedAt: new Date().toISOString() }
+          : p
+      );
+
+      // Update Firestore
+      const studentRef = doc(db, 'students', student.id);
+      await updateDoc(studentRef, {
+        backlogPapers: updatedPapers
+      });
+
+      // Update local state
+      setSearchResult({ ...student, backlogPapers: updatedPapers });
+
+      showToast('Clearance request sent to faculty!', 'success');
+    } catch (error) {
+      console.error('Error requesting clearance:', error);
+      showToast('Failed to send clearance request', 'error');
+    } finally {
+      setRequestingClearance(null);
     }
   };
 
@@ -268,6 +351,47 @@ const Dashboard = () => {
                       )}
                     </div>
 
+                    {/* Backlog Papers Section */}
+                    {searchResult.backlogPapers && searchResult.backlogPapers.length > 0 && (
+                      <div className="mt-6">
+                        <h3 className="text-lg font-semibold text-white mb-3">Backlog Papers</h3>
+                        <div className="space-y-3">
+                          {searchResult.backlogPapers.map((paper, index) => (
+                            <div 
+                              key={index}
+                              className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg border border-gray-700"
+                            >
+                              <div className="flex-1">
+                                <h4 className="font-semibold text-white">{paper.subjectName}</h4>
+                                <p className="text-sm text-gray-400">
+                                  {paper.subjectCode} • Semester {paper.semester}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getBacklogStatusColor(paper.status)}`}>
+                                  {getBacklogStatusText(paper.status)}
+                                </span>
+                                {canRequestClearance(paper) && (
+                                  <GradientButton
+                                    onClick={() => handleRequestClearance(paper, searchResult)}
+                                    disabled={requestingClearance === paper.subjectCode}
+                                    size="sm"
+                                  >
+                                    {requestingClearance === paper.subjectCode ? 'Requesting...' : 'Request Clearance'}
+                                  </GradientButton>
+                                )}
+                                {paper.status === 'clearance_requested' && (
+                                  <span className="text-sm text-blue-400">
+                                    ⏳ Pending approval
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     <div className="mt-6 p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-sm">
                       <p className="font-semibold mb-1">📧 Register Your Email</p>
                       <p>Contact your faculty to link your email ({currentUser.email}) with this student record for direct access.</p>
@@ -375,42 +499,95 @@ const Dashboard = () => {
                 <div className="text-sm text-gray-400">Prediction</div>
               </Card>
             </motion.div>
+          </div>
 
-            {/* Services Grid */}
+          {/* Backlog Papers Section for Registered Students */}
+          {studentData.backlogPapers && studentData.backlogPapers.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.6 }}
+              transition={{ delay: 0.3 }}
+              className="mb-12"
             >
-              <h2 className="text-2xl font-bold mb-6">Quick Access</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {studentServices.map((service, index) => (
-                  <motion.div
-                    key={service.title}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.5 + index * 0.1, duration: 0.5 }}
-                  >
-                    <Link to={service.path}>
-                      <Card hover gradient>
-                        <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${service.color} flex items-center justify-center text-3xl mb-4`}>
-                          {service.icon}
-                        </div>
-                        <h3 className="text-xl font-bold mb-2">{service.title}</h3>
-                        <p className="text-gray-400 text-sm">{service.description}</p>
-                        <div className="mt-4 flex items-center text-pink-500 font-medium">
-                          Open
-                          <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </div>
-                      </Card>
-                    </Link>
-                  </motion.div>
-                ))}
-              </div>
+              <h2 className="text-2xl font-bold mb-4">📚 Your Backlog Papers</h2>
+              <Card>
+                <div className="space-y-3">
+                  {studentData.backlogPapers.map((paper, index) => (
+                    <div 
+                      key={index}
+                      className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg border border-gray-700"
+                    >
+                      <div className="flex-1">
+                        <h3 className="font-semibold text-white">{paper.subjectName}</h3>
+                        <p className="text-sm text-gray-400">
+                          {paper.subjectCode} • Semester {paper.semester}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getBacklogStatusColor(paper.status)}`}>
+                          {getBacklogStatusText(paper.status)}
+                        </span>
+                        {canRequestClearance(paper) && (
+                          <GradientButton
+                            onClick={() => handleRequestClearance(paper, studentData)}
+                            disabled={requestingClearance === paper.subjectCode}
+                            size="sm"
+                          >
+                            {requestingClearance === paper.subjectCode ? 'Requesting...' : 'Request Clearance'}
+                          </GradientButton>
+                        )}
+                        {paper.status === 'clearance_requested' && (
+                          <span className="text-sm text-blue-400">
+                            ⏳ Pending approval
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                  <p className="text-sm text-blue-400">
+                    💡 <strong>Tip:</strong> Request clearance once you've cleared a paper. Faculty will review and approve your request.
+                  </p>
+                </div>
+              </Card>
             </motion.div>
-          </div>
+          )}
+
+          {/* Services Grid */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4, duration: 0.6 }}
+          >
+            <h2 className="text-2xl font-bold mb-6">Quick Access</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {studentServices.map((service, index) => (
+                <motion.div
+                  key={service.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 + index * 0.1, duration: 0.5 }}
+                >
+                  <Link to={service.path}>
+                    <Card hover gradient>
+                      <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${service.color} flex items-center justify-center text-3xl mb-4`}>
+                        {service.icon}
+                      </div>
+                      <h3 className="text-xl font-bold mb-2">{service.title}</h3>
+                      <p className="text-gray-400 text-sm">{service.description}</p>
+                      <div className="mt-4 flex items-center text-pink-500 font-medium">
+                        Open
+                        <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </Card>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
         </div>
       </div>
     );

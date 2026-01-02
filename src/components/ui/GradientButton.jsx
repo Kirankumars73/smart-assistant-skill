@@ -12,11 +12,12 @@ const GradientButton = ({
   disabled = false,
   ...props 
 }) => {
+  // Muted, professional colors
   const variants = {
-    primary: 'bg-gradient-to-r from-orange-500 to-pink-500',
-    secondary: 'bg-gradient-to-r from-indigo-500 to-purple-500',
-    success: 'bg-gradient-to-r from-green-500 to-teal-500',
-    danger: 'bg-gradient-to-r from-red-500 to-pink-600'
+    primary: 'bg-gradient-to-r from-indigo-500 to-purple-500',
+    secondary: 'bg-gray-700 hover:bg-gray-600',
+    success: 'bg-gradient-to-r from-emerald-500 to-teal-500',
+    danger: 'bg-gradient-to-r from-red-500 to-rose-500'
   };
 
   const sizes = {
@@ -30,11 +31,10 @@ const GradientButton = ({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      whileHover={{ scale: disabled ? 1 : 1.05 }}
-      whileTap={{ scale: disabled ? 1 : 0.95 }}
+      whileHover={{ scale: disabled ? 1 : 1.02 }}
+      whileTap={{ scale: disabled ? 1 : 0.98 }}
       className={clsx(
-        'rounded-lg font-semibold transition-all duration-300',
-        'shadow-lg hover:shadow-xl',
+        'rounded-lg font-semibold transition-all duration-200',
         'disabled:opacity-50 disabled:cursor-not-allowed',
         variants[variant],
         sizes[size],
