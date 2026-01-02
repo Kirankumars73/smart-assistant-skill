@@ -22,10 +22,10 @@ function AppContent() {
   return (
     <div className="App">
       <Routes>
-        {/* Public route - shows home page or login based on auth state */}
+        {/* Public route - shows login page for unauthenticated users */}
         <Route
           path="/"
-          element={currentUser ? <Navigate to="/dashboard" replace /> : <HomePage />}
+          element={currentUser ? <Navigate to="/dashboard" replace /> : <LoginPage />}
         />
 
         {/* Protected routes */}
