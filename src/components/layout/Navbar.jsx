@@ -29,7 +29,7 @@ const Navbar = () => {
     { path: '/dashboard', label: 'Dashboard', roles: ['admin', 'faculty', 'student'] },
     { path: '/admin', label: '👑 Admin Panel', roles: ['admin'] },
     { path: '/timetable', label: 'Timetable', roles: ['admin', 'faculty', 'student'] },
-    { path: '/students', label: 'Students', roles: ['admin', 'faculty', 'student'] },
+    { path: '/students', label: 'Students', roles: ['admin', 'faculty'] }, // Only admin & faculty
     { path: '/questions', label: 'Questions', roles: ['admin', 'faculty', 'student'] },
   ];
 

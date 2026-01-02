@@ -50,7 +50,7 @@ function AppContent() {
         <Route
           path="/students"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute requireFacultyAccess>
               <StudentRecords />
             </ProtectedRoute>
           }
