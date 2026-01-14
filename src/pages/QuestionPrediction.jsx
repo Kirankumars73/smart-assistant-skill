@@ -14,8 +14,8 @@ import { generatePredictions } from '../services/questionPredictionService';
 import { exportQuestionPredictionToPDF } from '../utils/questionPdfHelper';
 import * as XLSX from 'xlsx';
 
-const QuestionPrediction = () =>{
-  const { userRole, hasFacultyAccess } = useAuth();
+const QuestionPrediction = () => {
+  const { userRole, hasFacultyAccess, currentUser } = useAuth();
   const showToast = useToast();
   const { confirm, isOpen: isConfirmOpen, config: confirmConfig, handleConfirm, handleCancel } = useConfirm();
   const [predictions, setPredictions] = useState(null);
