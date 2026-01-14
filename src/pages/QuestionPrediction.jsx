@@ -464,20 +464,34 @@ const handleDeletePrediction = async (predictionId) => {
                   <div className="space-y-6">
                     {Object.entries(filteredPredictions.partA).map(([module, questions]) => (
                       <div key={module} className="border-l-4 border-pink-500 pl-6">
-                        <h4 className="text-xl font-bold mb-3 text-pink-400">{module}</h4>
-                        <div className="space-y-3">
+                        <h4 className="text-xl font-bold mb-4 text-pink-400">{module}</h4>
+                        <div className="space-y-4">
                           {questions.map((q, idx) => (
-                            <div key={idx} className="bg-gray-800/50 rounded-lg p-4 hover:bg-gray-800 transition-colors">
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1">
-                                  <p className="text-white font-medium mb-2">{q.question}</p>
-                                  <div className="flex items-center gap-4 text-sm text-gray-400">
-                                    <span>📊 Probability: {Math.round(q.probability * 100)}%</span>
-                                    <span>🔄 Frequency: {q.frequency}x</span>
-                                    <span>📝 {q.marks} marks</span>
+                            <div key={idx} className="bg-gray-800/50 rounded-lg p-5 hover:bg-gray-800 transition-colors">
+                              <div className="flex items-start gap-4">
+                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center">
+                                  <span className="text-pink-400 font-bold text-sm">{idx + 1}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-white font-medium mb-3 leading-relaxed break-words whitespace-normal">
+                                    {q.question}
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
+                                    <span className="flex items-center gap-1">
+                                      <span className="text-pink-400">📊</span>
+                                      Probability: {Math.round(q.probability * 100)}%
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <span className="text-orange-400">🔄</span>
+                                      Frequency: {q.frequency}x
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <span className="text-blue-400">📝</span>
+                                      {q.marks} marks
+                                    </span>
                                   </div>
                                 </div>
-                                <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                <div className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold ${
                                   q.probability > 0.7 ? 'bg-red-500/20 text-red-500 border border-red-500' :
                                   q.probability > 0.5 ? 'bg-orange-500/20 text-orange-500 border border-orange-500' :
                                   'bg-yellow-500/20 text-yellow-500 border border-yellow-500'
@@ -510,30 +524,39 @@ const handleDeletePrediction = async (predictionId) => {
                   <div className="space-y-6">
                     {Object.entries(filteredPredictions.partB).map(([module, data]) => (
                       <div key={module} className="border-l-4 border-orange-500 pl-6">
-                        <h4 className="text-xl font-bold mb-3 text-orange-400">
-                          {module} <span className="text-sm text-gray-400">(Total: {data.totalMarks} marks)</span>
+                        <h4 className="text-xl font-bold mb-2 text-orange-400">
+                          {module}
                         </h4>
-                        <div className="space-y-3">
+                        <p className="text-sm text-gray-400 mb-4">Total: {data.totalMarks} marks</p>
+                        <div className="space-y-4">
                           {data.questions.map((q, idx) => (
-                            <div key={idx} className="bg-gray-800/50 rounded-lg p-4 hover:bg-gray-800 transition-colors">
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <span className="bg-orange-500 text-white px-2 py-1 rounded text-xs font-bold">
-                                      {q.marks} marks
+                            <div key={idx} className="bg-gray-800/50 rounded-lg p-5 hover:bg-gray-800 transition-colors">
+                              <div className="flex items-start gap-4">
+                                <div className="flex-shrink-0">
+                                  <span className="inline-block bg-orange-500 text-white px-3 py-1 rounded-lg text-sm font-bold">
+                                    {q.marks}m
+                                  </span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-white font-medium mb-3 leading-relaxed break-words whitespace-normal">
+                                    {q.question}
+                                  </p>
+                                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
+                                    <span className="flex items-center gap-1">
+                                      <span className="text-pink-400">📊</span>
+                                      Probability: {Math.round(q.probability * 100)}%
                                     </span>
-                                    <p className="text-white font-medium">{q.question}</p>
-                                  </div>
-                                  <div className="flex items-center gap-4 text-sm text-gray-400">
-                                    <span>📊 Probability: {Math.round(q.probability * 100)}%</span>
-                                    <span>🔄 Frequency: {q.frequency}x</span>
+                                    <span className="flex items-center gap-1">
+                                      <span className="text-orange-400">🔄</span>
+                                      Frequency: {q.frequency}x
+                                    </span>
                                   </div>
                                 </div>
                               </div>
                             </div>
                           ))}
                         </div>
-                        <p className="mt-3 text-gray-500 text-sm italic">OR any other combination...</p>
+                        <p className="mt-4 text-gray-500 text-sm italic">OR any other combination summing to 14 marks</p>
                       </div>
                     ))}
                   </div>
