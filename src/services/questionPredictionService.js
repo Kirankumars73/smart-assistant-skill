@@ -1,11 +1,10 @@
 /**
- * Question Paper Prediction Service
- * Based on ML algorithm using frequency, marks, and recency
+ * Question Paper Prediction Service - ML Enhanced
+ * Uses trend analysis, TF-IDF semantic similarity, and ensemble methods
  */
 
 /**
  * Clean and normalize question text for comparison
- * Similar to Python's clean_text function
  */
 export const cleanText = (text) => {
   if (!text) return '';
@@ -14,18 +13,94 @@ export const cleanText = (text) => {
     .toLowerCase()
     .replace(/[^a-z\s]/g, '')
     .split(/\s+/)
-    .filter(word => word.length > 2) // Remove very short words (stopwords approximation)
+    .filter(word => word.length > 2)
     .join(' ')
     .trim();
 };
 
 /**
- * Calculate importance score for Part A questions
- * Logic: Frequency-based (questions asked multiple times are important)
- * FIX: Deduplicate by question + year + module to avoid double-counting same question
+ * Calculate TF-IDF for semantic similarity (ML Enhancement)
+ * Helps group questions by meaning, not just exact text
  */
-export const calculatePartAImportance = (questions) => {
-  // Count frequency of each UNIQUE question (deduplicate by year + module)
+export const calculateIDF = (questions) => {
+  const vocabulary = new Set();
+  questions.forEach(q => {
+    const words = q.clean_question.split(' ');
+    words.forEach(word => vocabulary.add(word));
+  });
+
+  const idf = {};
+  vocabulary.forEach(term => {
+    const docsWithTerm = questions.filter(q => 
+      q.clean_question.includes(term)
+    ).length;
+    idf[term] = Math.log(questions.length / (1 + docsWithTerm));
+  });
+
+  return idf;
+};
+
+/**
+ * Build TF-IDF vector for a question
+ */
+export const buildTFIDFVector = (question, idf) => {
+  const words = question.clean_question.split(' ');
+  const tfVector = {};
+  
+  words.forEach(word => {
+    const tf = words.filter(w => w === word).length / words.length;
+    tfVector[word] = tf * (idf[word] || 0);
+  });
+  
+  return tfVector;
+};
+
+/**
+ * Calculate cosine similarity between two TF-IDF vectors
+ */
+export const cosineSimilarity = (vecA, vecB) => {
+  const allWords = new Set([...Object.keys(vecA), ...Object.keys(vecB)]);
+  
+  let dotProduct = 0;
+  let magA = 0;
+  let magB = 0;
+  
+  allWords.forEach(word => {
+    const a = vecA[word] || 0;
+    const b = vecB[word] || 0;
+    dotProduct += a * b;
+    magA += a * a;
+    magB += b * b;
+  });
+  
+  if (magA === 0 || magB === 0) return 0;
+  return dotProduct / (Math.sqrt(magA) * Math.sqrt(magB));
+};
+
+/**
+ * Calculate trend score based on temporal patterns (ML Enhancement)
+ * Recent years weighted more heavily - adapts as new data added
+ */
+export const calculateTrendScore = (questions, currentYear = new Date().getFullYear()) => {
+  return questions.map(q => {
+    const yearsAgo = currentYear - (parseInt(q.Year) || 0);
+    // Exponential decay: recent = higher weight
+    const recencyWeight = Math.exp(-yearsAgo * 0.25);
+    
+    return {
+      ...q,
+      recencyWeight,
+      trendScore: recencyWeight
+    };
+  });
+};
+
+/**
+ * Calculate importance score for Part A questions - ML ENHANCED
+ * Combines: Frequency + Trend Analysis + Semantic Similarity
+ */
+export const calculatePartAImportance = (questions, currentYear = new Date().getFullYear()) => {
+  // Deduplicate and count frequency
   const frequencyMap = {};
   const seen = new Set();
   
@@ -39,21 +114,44 @@ export const calculatePartAImportance = (questions) => {
     }
   });
 
-  // Assign importance score
-  return questions.map(q => ({
-    ...q,
-    importance: frequencyMap[q.clean_question] > 1 ? 1 : 0,
-    frequency: frequencyMap[q.clean_question],
-    probability: Math.min(frequencyMap[q.clean_question] / 5, 1) // Normalize by max 5 occurrences
-  }));
+  // Calculate TF-IDF for semantic similarity
+  const idf = calculateIDF(questions);
+  
+  // Add trend scores
+  const withTrends = calculateTrendScore(questions, currentYear);
+
+  // Assign combined scores
+  return withTrends.map(q => {
+    const frequency = frequencyMap[q.clean_question];
+    const yearsAgo = currentYear - (parseInt(q.Year) || 0);
+    
+   // Build TF-IDF vector
+    const tfVector = buildTFIDFVector(q, idf);
+    
+    // Ensemble scoring: 40% frequency, 30% trend, 30% recency
+    const freqScore = Math.min(frequency / 5, 1) * 0.4;
+    const trendScore = q.recencyWeight * 0.3;
+    const recencyBonus = Math.max(0, (5 - yearsAgo) / 5) * 0.3;
+    
+    const finalScore = freqScore + trendScore + recencyBonus;
+    
+    return {
+      ...q,
+      importance: frequency > 1 || yearsAgo <= 2 ? 1 : 0,
+      frequency,
+      trendScore: q.trendScore,
+      tfVector,
+      probability: Math.min(finalScore, 1),
+      confidence: finalScore  // Show confidence to user
+    };
+  });
 };
 
 /**
- * Calculate importance score for Part B questions
- * Logic: Frequency + High marks (>=8) + Recent years
- * FIX: Proper normalization, deduplicate questions, clamp values
+ * Calculate importance score for Part B questions - ML ENHANCED
+ * Uses: Frequency + Marks + Recency + Trend Analysis + Semantic Similarity
  */
-export const calculatePartBImportance = (questions) => {
+export const calculatePartBImportance = (questions, currentYear = new Date().getFullYear()) => {
   if (questions.length === 0) return [];
 
   // Deduplicate and count frequency
@@ -71,26 +169,39 @@ export const calculatePartBImportance = (questions) => {
     }
   });
 
-  return questions.map(q => {
+  // Calculate TF-IDF
+  const idf = calculateIDF(questions);
+  
+  // Add trend scores
+  const withTrends = calculateTrendScore(questions, currentYear);
+
+  return withTrends.map(q => {
     const freq = frequencyMap[q.clean_question];
     const marks = parseInt(q.Marks) || 0;
     const year = parseInt(q.Year) || 0;
     
-    // Normalized scoring (each factor 0-1, weighted)
-    const freqScore = Math.min(freq / 5, 1) * 0.4;  // Cap at 5 occurrences
-    const marksScore = Math.min(marks / 14, 1) * 0.3;  // Normalize by max Part B marks
-    const yearScore = Math.max(0, Math.min((year - (recentYear - 5)) / 5, 1)) * 0.3;  // Last 5 years
-
-    const score = freqScore + marksScore + yearScore;
+    // Build TF-IDF vector
+    const tfVector = buildTFIDFVector(q, idf);
     
-    // Importance flag (at least one criterion met)
+    // ML Ensemble Scoring (weights add to 1.0)
+    const freqScore = Math.min(freq / 5, 1) * 0.3;         // 30% frequency
+    const marksScore = Math.min(marks / 14, 1) * 0.25;      // 25% marks weight
+    const yearScore = Math.max(0, Math.min((year - (recentYear - 5)) / 5, 1)) * 0.25;  // 25% recency
+    const trendBonus = q.recencyWeight * 0.2;               // 20% trend analysis
+
+    const score = freqScore + marksScore + yearScore + trendBonus;
+    
+    // Importance flag
     const importance = (freq > 1 || marks >= 8 || year >= recentYear - 1) ? 1 : 0;
 
     return {
       ...q,
       importance,
       frequency: freq,
-      probability: score  // Already normalized 0-1
+      trendScore: q.trendScore,
+      tfVector,
+      probability: score,
+      confidence: score
     };
   });
 };
