@@ -88,10 +88,23 @@ const QuestionPrediction = () =>{
           result.semester = semester;
           setPredictions(result);
 
-          // Save to Firestore
-          if (hasFacultyAccess()) {
-            await addDoc(collection(db, 'questions'), result);
+          // Save to Firestore automatically for all authenticated users
+          try {
+            console.log('💾 Attempting to save prediction to Firestore...');
+            const docRef = await addDoc(collection(db, 'questions'), {
+              ...result,
+              createdAt: new Date().toISOString(),
+              createdBy: currentUser?.uid || 'unknown',
+              userEmail: currentUser?.email || 'unknown'
+            });
+            console.log('✅ Prediction saved with ID:', docRef.id);
             await fetchSavedPredictions();
+          } catch (saveError) {
+            console.error('❌ Error saving to Firestore:', saveError);
+            console.error('Error code:', saveError.code);
+            console.error('Error message:', saveError.message);
+            // Don't fail the whole operation if save fails
+            setError(`Prediction generated but not saved: ${saveError.message}`);
           }
 
           setLoading(false);
