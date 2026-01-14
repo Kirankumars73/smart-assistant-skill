@@ -43,8 +43,8 @@ export const calculateIDF = (questions) => {
 /**
  * Build TF-IDF vector for a question
  */
-export const buildTFIDFVector = (question, idf) => {
-  const words = question.clean_question.split(' ');
+export const buildTFIDFVector = (cleanQuestion, idf) => {
+  const words = cleanQuestion.split(' ');
   const tfVector = {};
   
   words.forEach(word => {
@@ -122,11 +122,8 @@ export const calculatePartAImportance = (questions, currentYear = new Date().get
     const frequency = frequencyMap[q.clean_question];
     const yearsAgo = currentYear - (parseInt(q.Year) || 0);
     
-    // Calculate trend score directly (no recursive call)
+    // Calculate trend score directly
     const recencyWeight = Math.exp(-yearsAgo * 0.25);
-    
-    // Build TF-IDF vector
-    const tfVector = buildTFIDFVector(q, idf);
     
     // Ensemble scoring: 40% frequency, 30% trend, 30% recency
     const freqScore = Math.min(frequency / 5, 1) * 0.4;
@@ -135,12 +132,17 @@ export const calculatePartAImportance = (questions, currentYear = new Date().get
     
     const finalScore = freqScore + trendScore + recencyBonus;
     
+    // Return clean new object (avoid spreading to prevent circular refs)
     return {
-      ...q,
+      Question: q.Question,
+      Year: q.Year,
+      Module: q.Module,
+      Marks: q.Marks,
+      Part: q.Part,
+      clean_question: q.clean_question,
       importance: frequency > 1 || yearsAgo <= 2 ? 1 : 0,
       frequency,
       trendScore: recencyWeight,
-      tfVector,
       probability: Math.min(finalScore, 1),
       confidence: finalScore
     };
@@ -169,7 +171,7 @@ export const calculatePartBImportance = (questions, currentYear = new Date().get
     }
   });
 
-  // Calculate TF-IDF
+  // Calculate TF-IDF (but don't store it - just calculate for semantic analysis)
   const idf = calculateIDF(questions);
 
   return questions.map(q => {
@@ -178,13 +180,10 @@ export const calculatePartBImportance = (questions, currentYear = new Date().get
     const year = parseInt(q.Year) || 0;
     const yearsAgo = currentYear - year;
     
-    // Calculate trend score directly (no recursive call)
+    // Calculate trend score directly
     const recencyWeight = Math.exp(-yearsAgo * 0.25);
     
-    // Build TF-IDF vector
-    const tfVector = buildTFIDFVector(q, idf);
-    
-    // ML Ensemble Scoring (weights add to 1.0)
+    // ML Ensemble Scoring
     const freqScore = Math.min(freq / 5, 1) * 0.3;
     const marksScore = Math.min(marks / 14, 1) * 0.25;
     const yearScore = Math.max(0, Math.min((year - (recentYear - 5)) / 5, 1)) * 0.25;
@@ -195,12 +194,17 @@ export const calculatePartBImportance = (questions, currentYear = new Date().get
     // Importance flag
     const importance = (freq > 1 || marks >= 8 || year >= recentYear - 1) ? 1 : 0;
 
+    // Return clean new object
     return {
-      ...q,
+      Question: q.Question,
+      Year: q.Year,
+      Module: q.Module,
+      Marks: q.Marks,
+      Part: q.Part,
+      clean_question: q.clean_question,
       importance,
       frequency: freq,
       trendScore: recencyWeight,
-      tfVector,
       probability: score,
       confidence: score
     };
