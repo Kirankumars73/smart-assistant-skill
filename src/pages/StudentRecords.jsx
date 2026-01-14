@@ -342,6 +342,15 @@ const StudentRecords = () => {
   // Map common column name variations to our field names
   const mapColumnName = (header) => {
     const normalized = header.toLowerCase().trim();
+    
+    // Check for subject columns (Subject1_Name, Subject1_Marks, etc.)
+    const subjectPattern = /^subject(\d+)_(name|type|marks)$/i;
+    const subjectMatch = header.match(subjectPattern);
+    if (subjectMatch) {
+      const [, num, type] = subjectMatch;
+      return `subject${num}_${type.toLowerCase()}`;
+    }
+    
     const mappings = {
       'name': ['name', 'full name', 'student name', 'fullname'],
       'rollNumber': ['roll number', 'roll no', 'roll', 'rollno', 'roll_number'],

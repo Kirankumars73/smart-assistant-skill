@@ -21,6 +21,7 @@
     "framer-motion": "^12.23.26",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
+    "papaparse": "^5.5.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.10.1",
