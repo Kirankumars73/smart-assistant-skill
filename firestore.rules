@@ -112,18 +112,18 @@ service cloud.firestore {
     
     // QUESTIONS COLLECTION
     match /questions/{questionId} {
-      // All authenticated Gmail users can create predictions
-      allow create: if isGmail();
+      // Only Faculty/Admin can create question predictions
+      allow create: if hasFacultyAccess();
       
-      // All authenticated Gmail users can read questions
+      // All authenticated Gmail users can read predictions
       allow read: if isGmail();
       
-      // Only creator, Faculty, or Admin can update their own predictions
+      // Only creator, Faculty, or Admin can update predictions
       allow update: if isGmail() && (
         request.auth.uid == resource.data.createdBy || hasFacultyAccess()
       );
       
-      // Only creator, Faculty, or Admin can delete their own predictions
+      // Only creator, Faculty, or Admin can delete predictions
       allow delete: if isGmail() && (
         request.auth.uid == resource.data.createdBy || hasFacultyAccess()
       );

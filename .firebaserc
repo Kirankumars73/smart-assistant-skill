@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "smart-academic-assistant"
-  }
+    "default": "smart-academic-assistant",
+    "production": "skill-aef7f"
+  },
+  "targets": {},
+  "etags": {}
 }

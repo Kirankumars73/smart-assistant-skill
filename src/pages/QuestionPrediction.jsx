@@ -136,6 +136,23 @@ const QuestionPrediction = () => {
     }
   };
 
+  // TEST: Direct Firestore write
+  const testFirestoreWrite = async () => {
+    try {
+      console.log('🧪 Testing direct Firestore write...');
+      const testDoc = await addDoc(collection(db, 'questions'), {
+        test: true,
+        timestamp: new Date().toISOString(),
+        user: currentUser?.email
+      });
+      console.log('✅ TEST PASSED! Document created:', testDoc.id);
+      alert('✅ Firebase write works! Document ID: ' + testDoc.id);
+    } catch (err) {
+      console.error('❌ TEST FAILED:', err);
+      alert('❌ Test failed: ' + err.message);
+    }
+  };
+
   // Download CSV template
   const downloadTemplate = () => {
     const template = [
