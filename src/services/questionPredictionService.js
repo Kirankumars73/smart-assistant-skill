@@ -242,7 +242,6 @@ export const predictPartA = (questions) => {
 /**
  * Assemble 14-mark question combinations for Part B
  * FIX: Use recursive combination finder for EXACT 14-mark solutions
- * Finds the combination with highest total probability that sums to exactly 14 marks
  */
 export const assemble14Mark = (questions) => {
   const validCombinations = [];
@@ -271,8 +270,8 @@ export const assemble14Mark = (questions) => {
       );
     }
     
-    // Try skipping current question
-    findCombinations(index, current, currentTotal, currentProb);
+    // Try skipping current question - FIX: INCREMENT INDEX!
+    findCombinations(index + 1, current, currentTotal, currentProb);
   }
   
   findCombinations(0, [], 0, 0);
@@ -286,7 +285,7 @@ export const assemble14Mark = (questions) => {
     };
   }
   
-  // Fallback: If no exact 14-mark combo, use greedy approach for closest
+  // Fallback: greedy approach
   const selected = [];
   let total = 0;
   
