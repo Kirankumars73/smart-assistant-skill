@@ -100,6 +100,8 @@ export const calculateTrendScore = (questions, currentYear = new Date().getFullY
  * Combines: Frequency + Trend Analysis + Semantic Similarity
  */
 export const calculatePartAImportance = (questions, currentYear = new Date().getFullYear()) => {
+  console.log('🔍 Part A - Total questions received:', questions.length);
+  
   // Count frequency across ALL occurrences (not deduplicated yet)
   const frequencyMap = {};
   
@@ -107,6 +109,13 @@ export const calculatePartAImportance = (questions, currentYear = new Date().get
     const cleaned = q.clean_question;
     frequencyMap[cleaned] = (frequencyMap[cleaned] || 0) + 1;
   });
+
+  // Log frequency counts
+  console.log('📊 Frequency Map:', Object.fromEntries(
+    Object.entries(frequencyMap).slice(0, 5).map(([q, count]) => [q.substring(0, 30) + '...', count])
+  ));
+  console.log('📊 Total unique questions:', Object.keys(frequencyMap).length);
+  console.log('📊 Questions with frequency > 1:', Object.values(frequencyMap).filter(f => f > 1).length);
 
   // Calculate TF-IDF for semantic similarity
   const idf = calculateIDF(questions);
@@ -123,6 +132,8 @@ export const calculatePartAImportance = (questions, currentYear = new Date().get
     }
   });
 
+  console.log('✅ Unique questions after dedup:', uniqueQuestions.length);
+
   // Assign combined scores to unique questions
   return uniqueQuestions.map(q => {
     const frequency = frequencyMap[q.clean_question]; // Get total frequency
@@ -137,6 +148,14 @@ export const calculatePartAImportance = (questions, currentYear = new Date().get
     const recencyBonus = Math.max(0, (5 - yearsAgo) / 5) * 0.3;
     
     const finalScore = freqScore + trendScore + recencyBonus;
+    
+    // Log first few for debugging
+    if (uniqueQuestions.indexOf(q) < 3) {
+      console.log(`📌 Question: "${q.Question.substring(0, 40)}..."`, {
+        frequency,
+        probability: Math.min(finalScore, 1).toFixed(2)
+      });
+    }
     
     // Return clean new object
     return {
