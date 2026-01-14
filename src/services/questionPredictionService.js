@@ -116,21 +116,21 @@ export const calculatePartAImportance = (questions, currentYear = new Date().get
 
   // Calculate TF-IDF for semantic similarity
   const idf = calculateIDF(questions);
-  
-  // Add trend scores
-  const withTrends = calculateTrendScore(questions, currentYear);
 
   // Assign combined scores
-  return withTrends.map(q => {
+  return questions.map(q => {
     const frequency = frequencyMap[q.clean_question];
     const yearsAgo = currentYear - (parseInt(q.Year) || 0);
     
-   // Build TF-IDF vector
+    // Calculate trend score directly (no recursive call)
+    const recencyWeight = Math.exp(-yearsAgo * 0.25);
+    
+    // Build TF-IDF vector
     const tfVector = buildTFIDFVector(q, idf);
     
     // Ensemble scoring: 40% frequency, 30% trend, 30% recency
     const freqScore = Math.min(frequency / 5, 1) * 0.4;
-    const trendScore = q.recencyWeight * 0.3;
+    const trendScore = recencyWeight * 0.3;
     const recencyBonus = Math.max(0, (5 - yearsAgo) / 5) * 0.3;
     
     const finalScore = freqScore + trendScore + recencyBonus;
@@ -139,10 +139,10 @@ export const calculatePartAImportance = (questions, currentYear = new Date().get
       ...q,
       importance: frequency > 1 || yearsAgo <= 2 ? 1 : 0,
       frequency,
-      trendScore: q.trendScore,
+      trendScore: recencyWeight,
       tfVector,
       probability: Math.min(finalScore, 1),
-      confidence: finalScore  // Show confidence to user
+      confidence: finalScore
     };
   });
 };
@@ -171,23 +171,24 @@ export const calculatePartBImportance = (questions, currentYear = new Date().get
 
   // Calculate TF-IDF
   const idf = calculateIDF(questions);
-  
-  // Add trend scores
-  const withTrends = calculateTrendScore(questions, currentYear);
 
-  return withTrends.map(q => {
+  return questions.map(q => {
     const freq = frequencyMap[q.clean_question];
     const marks = parseInt(q.Marks) || 0;
     const year = parseInt(q.Year) || 0;
+    const yearsAgo = currentYear - year;
+    
+    // Calculate trend score directly (no recursive call)
+    const recencyWeight = Math.exp(-yearsAgo * 0.25);
     
     // Build TF-IDF vector
     const tfVector = buildTFIDFVector(q, idf);
     
     // ML Ensemble Scoring (weights add to 1.0)
-    const freqScore = Math.min(freq / 5, 1) * 0.3;         // 30% frequency
-    const marksScore = Math.min(marks / 14, 1) * 0.25;      // 25% marks weight
-    const yearScore = Math.max(0, Math.min((year - (recentYear - 5)) / 5, 1)) * 0.25;  // 25% recency
-    const trendBonus = q.recencyWeight * 0.2;               // 20% trend analysis
+    const freqScore = Math.min(freq / 5, 1) * 0.3;
+    const marksScore = Math.min(marks / 14, 1) * 0.25;
+    const yearScore = Math.max(0, Math.min((year - (recentYear - 5)) / 5, 1)) * 0.25;
+    const trendBonus = recencyWeight * 0.2;
 
     const score = freqScore + marksScore + yearScore + trendBonus;
     
@@ -198,7 +199,7 @@ export const calculatePartBImportance = (questions, currentYear = new Date().get
       ...q,
       importance,
       frequency: freq,
-      trendScore: q.trendScore,
+      trendScore: recencyWeight,
       tfVector,
       probability: score,
       confidence: score
@@ -332,7 +333,7 @@ export const predictPartB = (questions) => {
 
 /**
  * Parse CSV file and extract question data
- * FIX: Properly handle commas, quotes, and special characters in CSV
+ * FIX: Properly handle commas, quotes, and FLEXIBLE column name matching
  */
 export const parseQuestionCSV = (csvText) => {
   if (!csvText || csvText.trim().length === 0) {
@@ -367,15 +368,71 @@ export const parseQuestionCSV = (csvText) => {
   };
 
   // Parse header
-  const header = parseCSVLine(lines[0]);
+  const rawHeaders = parseCSVLine(lines[0]);
+  
+  // Smart column name mapping (INTELLIGENT ML FEATURE)
+  const columnMappings = {
+    'Question': [
+      'question', 'questions', 'question text', 'question_text', 
+      'questiontext', 'q', 'ques', 'question name'
+    ],
+    'Year': [
+      'year', 'yr', 'academic year', 'exam year', 'year_of_exam'
+    ],
+    'Module': [
+      'module', 'mod', 'unit', 'chapter', 'module number', 'module_number'
+    ],
+    'Marks': [
+      'marks', 'mark', 'points', 'score', 'total marks', 'max marks'
+    ],
+    'Part': [
+      'part', 'section', 'part name', 'question part'
+    ]
+  };
+
+  // Map actual headers to expected columns
+  const headerMap = {};
+  const mappedHeaders = [];
+  
+  rawHeaders.forEach((rawHeader, idx) => {
+    const normalized = rawHeader.toLowerCase().trim();
+    let mapped = null;
+    
+    // Try to find a match
+    for (const [expectedCol, variations] of Object.entries(columnMappings)) {
+      if (variations.includes(normalized) || normalized === expectedCol.toLowerCase()) {
+        mapped = expectedCol;
+        headerMap[idx] = expectedCol;
+        break;
+      }
+    }
+    
+    mappedHeaders.push(mapped || rawHeader);
+  });
+
+  // Log detected columns (ACTIVE LOGGING)
+  console.log('📋 CSV Column Detection:');
+  console.log('Raw headers:', rawHeaders);
+  console.log('Mapped to:', mappedHeaders);
+  console.log('Header mapping:', headerMap);
   
   // Expected columns
   const requiredColumns = ['Question', 'Year', 'Module', 'Marks', 'Part'];
-  const missingColumns = requiredColumns.filter(col => !header.includes(col));
+  const detectedColumns = Object.values(headerMap);
+  const missingColumns = requiredColumns.filter(col => !detectedColumns.includes(col));
   
   if (missingColumns.length > 0) {
-    throw new Error(`Missing required columns: ${missingColumns.join(', ')}`);
+    console.error('❌ Missing columns:', missingColumns);
+    console.error('💡 Available columns:', rawHeaders);
+    console.error('💡 Detected mappings:', headerMap);
+    throw new Error(
+      `Missing required columns: ${missingColumns.join(', ')}\n\n` +
+      `Found columns: ${rawHeaders.join(', ')}\n\n` +
+      `Tip: Make sure your CSV has columns for: ${requiredColumns.join(', ')}`
+    );
   }
+
+  console.log('✅ All required columns found!');
 
   // Parse data rows
   const questions = [];
@@ -384,27 +441,41 @@ export const parseQuestionCSV = (csvText) => {
     
     const values = parseCSVLine(lines[i]);
     
-    // Allow flexible column count (some rows might have optional columns)
-    if (values.length < requiredColumns.length) continue;
-
+    // Build row with mapped column names
     const row = {};
-    header.forEach((col, idx) => {
-      row[col] = values[idx] || '';
+    values.forEach((value, idx) => {
+      const columnName = headerMap[idx] || rawHeaders[idx];
+      row[columnName] = value || '';
     });
 
     // Validate required fields
     if (!row.Question || !row.Year || !row.Module || !row.Marks || !row.Part) {
+      console.warn(`⚠️ Row ${i} missing data:`, row);
       continue; // Skip invalid rows
     }
 
     // Add cleaned text
     row.clean_question = cleanText(row.Question);
+    
+    // Log first few questions for verification
+    if (i <= 3) {
+      console.log(`✓ Parsed row ${i}:`, {
+        Question: row.Question.substring(0, 50) + '...',
+        Year: row.Year,
+        Module: row.Module,
+        Marks: row.Marks,
+        Part: row.Part
+      });
+    }
+    
     questions.push(row);
   }
 
   if (questions.length === 0) {
     throw new Error('No valid questions found in CSV file');
   }
+
+  console.log(`✅ Successfully parsed ${questions.length} questions`);
 
   return questions;
 };
