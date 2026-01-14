@@ -91,6 +91,15 @@ const QuestionPrediction = () => {
           // Save to Firestore automatically for all authenticated users
           try {
             console.log('💾 Attempting to save prediction to Firestore...');
+            console.log('🔐 Current User:', {
+              uid: currentUser?.uid,
+              email: currentUser?.email,
+              emailVerified: currentUser?.emailVerified,
+              isAnonymous: currentUser?.isAnonymous
+            });
+            console.log('👤 User Role:', userRole);
+            console.log('✉️ Is Gmail?', currentUser?.email?.endsWith('@gmail.com'));
+            
             const docRef = await addDoc(collection(db, 'questions'), {
               ...result,
               createdAt: new Date().toISOString(),
@@ -101,8 +110,11 @@ const QuestionPrediction = () => {
             await fetchSavedPredictions();
           } catch (saveError) {
             console.error('❌ Error saving to Firestore:', saveError);
-            console.error('Error code:', saveError.code);
-            console.error('Error message:', saveError.message);
+            console.error('📋 Error details:', {
+              code: saveError.code,
+              message: saveError.message,
+              name: saveError.name
+            });
             // Don't fail the whole operation if save fails
             setError(`Prediction generated but not saved: ${saveError.message}`);
           }
