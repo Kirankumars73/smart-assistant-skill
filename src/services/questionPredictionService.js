@@ -100,26 +100,32 @@ export const calculateTrendScore = (questions, currentYear = new Date().getFullY
  * Combines: Frequency + Trend Analysis + Semantic Similarity
  */
 export const calculatePartAImportance = (questions, currentYear = new Date().getFullYear()) => {
-  // Deduplicate and count frequency
+  // Count frequency across ALL occurrences (not deduplicated yet)
   const frequencyMap = {};
-  const seen = new Set();
   
   questions.forEach(q => {
     const cleaned = q.clean_question;
-    const uniqueKey = `${cleaned}_${q.Year}_${q.Module}`;
-    
-    if (!seen.has(uniqueKey)) {
-      seen.add(uniqueKey);
-      frequencyMap[cleaned] = (frequencyMap[cleaned] || 0) + 1;
-    }
+    frequencyMap[cleaned] = (frequencyMap[cleaned] || 0) + 1;
   });
 
   // Calculate TF-IDF for semantic similarity
   const idf = calculateIDF(questions);
 
-  // Assign combined scores
-  return questions.map(q => {
-    const frequency = frequencyMap[q.clean_question];
+  // Now deduplicate for unique predictions (keep one instance per year/module)
+  const seen = new Set();
+  const uniqueQuestions = [];
+  
+  questions.forEach(q => {
+    const uniqueKey = `${q.clean_question}_${q.Year}_${q.Module}`;
+    if (!seen.has(uniqueKey)) {
+      seen.add(uniqueKey);
+      uniqueQuestions.push(q);
+    }
+  });
+
+  // Assign combined scores to unique questions
+  return uniqueQuestions.map(q => {
+    const frequency = frequencyMap[q.clean_question]; // Get total frequency
     const yearsAgo = currentYear - (parseInt(q.Year) || 0);
     
     // Calculate trend score directly
@@ -132,7 +138,7 @@ export const calculatePartAImportance = (questions, currentYear = new Date().get
     
     const finalScore = freqScore + trendScore + recencyBonus;
     
-    // Return clean new object (avoid spreading to prevent circular refs)
+    // Return clean new object
     return {
       Question: q.Question,
       Year: q.Year,
@@ -141,7 +147,7 @@ export const calculatePartAImportance = (questions, currentYear = new Date().get
       Part: q.Part,
       clean_question: q.clean_question,
       importance: frequency > 1 || yearsAgo <= 2 ? 1 : 0,
-      frequency,
+      frequency,  // Now shows actual total count!
       trendScore: recencyWeight,
       probability: Math.min(finalScore, 1),
       confidence: finalScore
@@ -156,26 +162,33 @@ export const calculatePartAImportance = (questions, currentYear = new Date().get
 export const calculatePartBImportance = (questions, currentYear = new Date().getFullYear()) => {
   if (questions.length === 0) return [];
 
-  // Deduplicate and count frequency
+  // Count frequency across ALL occurrences first
   const frequencyMap = {};
-  const seen = new Set();
-  const recentYear = Math.max(...questions.map(q => parseInt(q.Year) || 0));
-  
   questions.forEach(q => {
     const cleaned = q.clean_question;
-    const uniqueKey = `${cleaned}_${q.Year}_${q.Module}`;
-    
+    frequencyMap[cleaned] = (frequencyMap[cleaned] || 0) + 1;
+  });
+
+  // Calculate TF-IDF
+  const idf = calculateIDF(questions);
+  
+  // Find most recent year for scoring
+  const recentYear = Math.max(...questions.map(q => parseInt(q.Year) || 0));
+
+  // Deduplicate keeping one instance per year/module
+  const seen = new Set();
+  const uniqueQuestions = [];
+  
+  questions.forEach(q => {
+    const uniqueKey = `${q.clean_question}_${q.Year}_${q.Module}`;
     if (!seen.has(uniqueKey)) {
       seen.add(uniqueKey);
-      frequencyMap[cleaned] = (frequencyMap[cleaned] || 0) + 1;
+      uniqueQuestions.push(q);
     }
   });
 
-  // Calculate TF-IDF (but don't store it - just calculate for semantic analysis)
-  const idf = calculateIDF(questions);
-
-  return questions.map(q => {
-    const freq = frequencyMap[q.clean_question];
+  return uniqueQuestions.map(q => {
+    const freq = frequencyMap[q.clean_question]; // Total frequency
     const marks = parseInt(q.Marks) || 0;
     const year = parseInt(q.Year) || 0;
     const yearsAgo = currentYear - year;
@@ -203,7 +216,7 @@ export const calculatePartBImportance = (questions, currentYear = new Date().get
       Part: q.Part,
       clean_question: q.clean_question,
       importance,
-      frequency: freq,
+      frequency: freq,  // Shows actual total count!
       trendScore: recencyWeight,
       probability: score,
       confidence: score
