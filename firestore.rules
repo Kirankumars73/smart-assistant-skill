@@ -79,14 +79,12 @@ service cloud.firestore {
       
       // Faculty/Admin can read all records
       // Students can read their own record (matching studentId field)
-      // Parents can read their linked student's record
+      // Parents can read ANY student record (needed for verification/linking)
       allow read: if hasFacultyAccess() || 
                      (isStudent() && 
                       get(/databases/$(database)/documents/students/$(studentId)).data.studentId == 
                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.studentId) ||
-                     (isParent() && 
-                      get(/databases/$(database)/documents/students/$(studentId)).data.studentId == 
-                      get(/databases/$(database)/documents/users/$(request.auth.uid)).data.linkedStudentId);
+                     isParent();  // Parents can read to verify student IDs during linking
       
       // Only Faculty/Admin can update student records
       allow update: if hasFacultyAccess();

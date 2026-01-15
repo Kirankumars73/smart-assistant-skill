@@ -8,22 +8,45 @@ import { db } from '../config/firebase';
  */
 export const verifyStudentId = async (studentId) => {
   try {
+    console.log('🔍 Verifying student ID:', studentId);
+    
     const studentsRef = collection(db, 'students');
     const q = query(studentsRef, where('studentId', '==', studentId.toUpperCase()));
+    
+    console.log('📊 Querying Firestore for studentId:', studentId.toUpperCase());
     const querySnapshot = await getDocs(q);
+    
+    console.log('📈 Query results:', querySnapshot.size, 'documents found');
 
     if (querySnapshot.empty) {
+      console.warn('⚠️ No student found with ID:', studentId);
+      
+      // DEBUG: Try to find if field name is different
+      const allStudentsQuery = query(studentsRef);
+      const allDocs = await getDocs(allStudentsQuery);
+      console.log('🔍 Total students in database:', allDocs.size);
+      
+      if (allDocs.size > 0) {
+        const sampleDoc = allDocs.docs[0].data();
+        console.log('📋 Sample student document fields:', Object.keys(sampleDoc));
+        console.log('📋 Sample studentId field value:', sampleDoc.student Id || sampleDoc.student_id || 'FIELD NOT FOUND');
+      }
+      
       return null;
     }
 
     // Return first matching student (should be unique)
     const studentDoc = querySnapshot.docs[0];
+    const studentData = studentDoc.data();
+    console.log('✅ Student found:', studentData.name, '|', studentData.studentId);
+    
     return {
       id: studentDoc.id,
-      ...studentDoc.data()
+      ...studentData
     };
   } catch (error) {
-    console.error('Error verifying student ID:', error);
+    console.error('❌ Error verifying student ID:', error);
+    console.error('Error details:', error.code, error.message);
     throw new Error('Failed to verify student ID. Please try again.');
   }
 };
