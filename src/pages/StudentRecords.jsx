@@ -944,11 +944,12 @@ const StudentRecords = () => {
             <select
               value={filterSemester}
               onChange={(e) => setFilterSemester(e.target.value)}
-              className="px-4 py-2 rounded-lg bg-gray-900 border border-white/10 focus:border-pink-500 focus:outline-none text-white" style={{colorScheme: 'dark'}}
+              className="px-4 py-2 rounded-lg bg-gray-900 border border-white/10 focus:border-pink-500 focus:outline-none text-white"
+              style={{colorScheme: 'dark'}}
             >
-              <option value="all" className="bg-black text-white">All Semesters</option>
+              <option value="all" style={{backgroundColor: '#000000', color: '#ffffff'}}>All Semesters</option>
               {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
-                <option key={sem} value={sem} className="bg-black text-white">Semester {sem}</option>
+                <option key={sem} value={sem} style={{backgroundColor: '#000000', color: '#ffffff'}}>Semester {sem}</option>
               ))}
             </select>
 
@@ -956,12 +957,13 @@ const StudentRecords = () => {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
-              className="px-4 py-2 rounded-lg bg-gray-900 border border-white/10 focus:border-pink-500 focus:outline-none text-white" style={{colorScheme: 'dark'}}
+              className="px-4 py-2 rounded-lg bg-gray-900 border border-white/10 focus:border-pink-500 focus:outline-none text-white"
+              style={{colorScheme: 'dark'}}
             >
-              <option value="all" className="bg-black text-white">All Status</option>
-              <option value="pass" className="bg-black text-white">Predicted Pass</option>
-              <option value="fail" className="bg-black text-white">Predicted Fail</option>
-              <option value="at-risk" className="bg-black text-white">At Risk</option>
+              <option value="all" style={{backgroundColor: '#000000', color: '#ffffff'}}>All Status</option>
+              <option value="pass" style={{backgroundColor: '#000000', color: '#ffffff'}}>Predicted Pass</option>
+              <option value="fail" style={{backgroundColor: '#000000', color: '#ffffff'}}>Predicted Fail</option>
+              <option value="at-risk" style={{backgroundColor: '#000000', color: '#ffffff'}}>At Risk</option>
             </select>
           </div>
         </Card>
