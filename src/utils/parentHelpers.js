@@ -29,7 +29,7 @@ export const verifyStudentId = async (studentId) => {
       if (allDocs.size > 0) {
         const sampleDoc = allDocs.docs[0].data();
         console.log('📋 Sample student document fields:', Object.keys(sampleDoc));
-        console.log('📋 Sample studentId field value:', sampleDoc.student Id || sampleDoc.student_id || 'FIELD NOT FOUND');
+        console.log('📋 Sample studentId field value:', sampleDoc.studentId || sampleDoc.student_id || 'FIELD NOT FOUND');
       }
       
       return null;
