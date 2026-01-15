@@ -12,11 +12,13 @@ import { useToast } from '../hooks/useToast';
 import { useConfirm } from '../hooks/useConfirm';
 import { generatePredictions } from '../services/questionPredictionService';
 import { exportQuestionPredictionToPDF } from '../utils/questionPdfHelper';
+import MLInsights from '../components/ui/MLInsights';  // Phase 2: ML insights display
 import * as XLSX from 'xlsx';
+import { parseSyllabus } from '../services/syllabusParser';  // Auto-parse syllabus format
 
 const QuestionPrediction = () => {
   const { userRole, hasFacultyAccess, currentUser } = useAuth();
-  const showToast = useToast();
+  const { showSuccess, showError } = useToast();
   const { confirm, isOpen: isConfirmOpen, config: confirmConfig, handleConfirm, handleCancel } = useConfirm();
   const [predictions, setPredictions] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -28,6 +30,11 @@ const QuestionPrediction = () => {
   const [savedPredictions, setSavedPredictions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [semesterFilter, setSemesterFilter] = useState('all');
+  
+  // Phase 2: Syllabus integration and AI features
+  const [syllabus, setSyllabus] = useState(null);
+  const [aiEnabled, setAiEnabled] = useState(true);  // Enable AI by default
+  const [showMLInsights, setShowMLInsights] = useState(true);  // Show ML features
 
   // Fetch saved predictions from Firestore
   useEffect(() => {
@@ -82,8 +89,8 @@ const QuestionPrediction = () => {
         try {
           const csvText = event.target.result;
           
-          // Generate predictions with metadata
-          const result = generatePredictions(csvText, subjectName);
+          // Generate predictions with Phase 2 ML features
+          const result = await generatePredictions(csvText, subjectName, syllabus, aiEnabled);
           result.subjectCode = subjectCode;
           result.semester = semester;
           setPredictions(result);
@@ -177,13 +184,23 @@ const QuestionPrediction = () => {
 
   // Filter predictions by module
   const getFilteredPredictions = () => {
-    if (!predictions || selectedModule === 'all') return predictions;
+    // CRITICAL: Return safe default structure if predictions is null
+    if (!predictions || !predictions.partA || !predictions.partB) {
+      return {
+        partA: {},
+        partB: {}
+      };
+    }
+    
+    if (selectedModule === 'all') {
+      return predictions;
+    }
 
     const moduleKey = `Module ${selectedModule}`;
     return {
-      ...predictions,
-      partA: { [moduleKey]: predictions.partA[moduleKey] },
-      partB: { [moduleKey]: predictions.partB[moduleKey] }
+      partA: predictions.partA[moduleKey] ? { [moduleKey]: predictions.partA[moduleKey] } : {},
+      partB: predictions.partB[moduleKey] ? { [moduleKey]: predictions.partB[moduleKey] } : {},
+      stats: predictions.stats
     };
   };
 
@@ -264,10 +281,10 @@ const QuestionPrediction = () => {
 
     try {
       await exportQuestionPredictionToPDF(predictions);
-      showToast('PDF exported successfully!', 'success');
+      showSuccess('PDF exported successfully!');
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      showToast('Failed to export PDF. Please try again.', 'error');
+      showError('Failed to export PDF. Please try again.');
     }
   };
 
@@ -310,10 +327,10 @@ const handleDeletePrediction = async (predictionId) => {
     // Refresh the list
     await fetchSavedPredictions();
     
-    showToast('Prediction deleted successfully!', 'success');
+    showSuccess('Prediction deleted successfully!');
   } catch (err) {
     console.error('Error deleting prediction:', err);
-    showToast('Error deleting prediction. Please try again.', 'error');
+    showError('Error deleting prediction. Please try again.');
   }
 };
 
@@ -392,6 +409,75 @@ const handleDeletePrediction = async (predictionId) => {
                     </p>
                     <p className="text-sm text-gray-400">CSV format with Question, Year, Module, Marks, Part columns</p>
                   </label>
+                </div>
+
+                {/* Phase 2: Syllabus Upload (Optional) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    📚 Upload Syllabus (Optional - Boosts Important Topics)
+                  </label>
+                  <input
+                    type="file"
+                    accept=".json"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                          try {
+                            const rawData = JSON.parse(event.target.result);
+                            console.log('📚 Raw syllabus loaded:', rawData);
+                            
+                            // Auto-parse to correct format
+                            const parsedSyllabus = parseSyllabus(rawData);
+                            console.log('✨ Parsed syllabus:', parsedSyllabus);
+                            console.log('📊 Modules in syllabus:', parsedSyllabus.modules?.length);
+                            console.log('📝 Total topics:', parsedSyllabus.modules?.reduce((sum, m) => sum + m.topics.length, 0));
+                            
+                            setSyllabus(parsedSyllabus);
+                            showSuccess('✅ Syllabus loaded successfully!');
+                          } catch (err) {
+                            console.error('❌ Syllabus parse error:', err);
+                            showError('❌ Invalid syllabus JSON format');
+                          }
+                        };
+                        reader.readAsText(file);
+                      }
+                    }}
+                    className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-pink-500/20 file:text-pink-400 hover:file:bg-pink-500/30 cursor-pointer"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">JSON file with module topics and keywords</p>
+                </div>
+
+                {/* Phase 2: ML Controls */}
+                <div className="flex flex-wrap items-center gap-6 p-4 bg-gray-800/30 rounded-lg">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={aiEnabled}
+                      onChange={(e) => setAiEnabled(e.target.checked)}
+                      className="w-4 h-4 text-pink-500 bg-gray-800 border-gray-700 rounded focus:ring-2 focus:ring-pink-500 cursor-pointer"
+                    />
+                    <span className="text-sm text-gray-300 group-hover:text-white transition">
+                      🤖 Enable AI Clustering
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={showMLInsights}
+                      onChange={(e) => setShowMLInsights(e.target.checked)}
+                      className="w-4 h-4 text-pink-500 bg-gray-800 border-gray-700 rounded focus:ring-2 focus:ring-pink-500 cursor-pointer"
+                    />
+                    <span className="text-sm text-gray-300 group-hover:text-white transition">
+                      📊 Show ML Insights
+                    </span>
+                  </label>
+                  {syllabus && (
+                    <span className="text-xs bg-green-500/20 text-green-400 px-3 py-1 rounded-full">
+                      ✓ Syllabus Loaded
+                    </span>
+                  )}
                 </div>
 
                 {/* Download Template Button */}
@@ -504,7 +590,7 @@ const handleDeletePrediction = async (predictionId) => {
                   </h3>
                   
                   <div className="space-y-6">
-                    {Object.entries(filteredPredictions.partA).map(([module, questions]) => (
+                    {filteredPredictions?.partA && Object.entries(filteredPredictions.partA).map(([module, questions]) => (
                       <div key={module} className="border-l-4 border-pink-500 pl-6">
                         <h4 className="text-xl font-bold mb-4 text-pink-400">{module}</h4>
                         <div className="space-y-4">
@@ -518,6 +604,22 @@ const handleDeletePrediction = async (predictionId) => {
                                   <p className="text-white font-medium mb-3 leading-relaxed break-words whitespace-normal">
                                     {q.question}
                                   </p>
+                                  
+                                  {/* Syllabus Topics */}
+                                  {q.syllabus_topics && q.syllabus_topics.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mb-3">
+                                      <span className="text-xs text-purple-400 font-semibold">📚 Focus Areas:</span>
+                                      {q.syllabus_topics.map((topic, topicIdx) => (
+                                        <span
+                                          key={topicIdx}
+                                          className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-full text-xs font-medium border border-purple-500/30"
+                                        >
+                                          {topic}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  
                                   <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
                                     <span className="flex items-center gap-1">
                                       <span className="text-pink-400">📊</span>
@@ -532,6 +634,9 @@ const handleDeletePrediction = async (predictionId) => {
                                       {q.marks} marks
                                     </span>
                                   </div>
+                                  
+                                  {/* Phase 2: ML Insights */}
+                                  {showMLInsights && <MLInsights question={q} />}
                                 </div>
                                 <div className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold ${
                                   q.probability > 0.7 ? 'bg-red-500/20 text-red-500 border border-red-500' :
@@ -560,45 +665,134 @@ const handleDeletePrediction = async (predictionId) => {
                 <Card gradient>
                   <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
                     <span className="text-gradient">Part B</span>
-                    <span className="text-gray-400 text-base">(Answer any one - 14 marks total)</span>
+                    <span className="text-gray-400 text-base">(14 marks - Answer any TWO questions)</span>
                   </h3>
                   
                   <div className="space-y-6">
-                    {Object.entries(filteredPredictions.partB).map(([module, data]) => (
+                    {filteredPredictions?.partB && Object.entries(filteredPredictions.partB).map(([module, data]) => (
                       <div key={module} className="border-l-4 border-orange-500 pl-6">
                         <h4 className="text-xl font-bold mb-2 text-orange-400">
                           {module}
                         </h4>
-                        <p className="text-sm text-gray-400 mb-4">Total: {data.totalMarks} marks</p>
-                        <div className="space-y-4">
-                          {data.questions.map((q, idx) => (
-                            <div key={idx} className="bg-gray-800/50 rounded-lg p-5 hover:bg-gray-800 transition-colors">
-                              <div className="flex items-start gap-4">
-                                <div className="flex-shrink-0">
-                                  <span className="inline-block bg-orange-500 text-white px-3 py-1 rounded-lg text-sm font-bold">
-                                    {q.marks}m
-                                  </span>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-white font-medium mb-3 leading-relaxed break-words whitespace-normal">
-                                    {q.question}
-                                  </p>
-                                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
-                                    <span className="flex items-center gap-1">
-                                      <span className="text-pink-400">📊</span>
-                                      Probability: {Math.round(q.probability * 100)}%
+                        
+                        {/* Set A */}
+                        <div className="mb-6">
+                          <p className="text-sm text-gray-400 mb-3 flex items-center gap-2">
+                            <span className="bg-orange-500/20 text-orange-300 px-2 py-1 rounded font-bold">SET A</span>
+                            Total: {data.setA?.totalMarks || 0} marks
+                          </p>
+                          <div className="space-y-4">
+                            {data.setA?.questions && data.setA.questions.map((q, idx) => (
+                              <div key={idx} className="bg-gray-800/50 rounded-lg p-5 hover:bg-gray-800 transition-colors">
+                                <div className="flex items-start gap-4">
+                                  <div className="flex-shrink-0">
+                                    <span className="inline-block bg-orange-500 text-white px-3 py-1 rounded-lg text-sm font-bold">
+                                      {q.marks}m
                                     </span>
-                                    <span className="flex items-center gap-1">
-                                      <span className="text-orange-400">🔄</span>
-                                      Frequency: {q.frequency}x
-                                    </span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-white font-medium mb-3 leading-relaxed break-words whitespace-normal">
+                                      {q.question}
+                                    </p>
+                                    
+                                    {/* Syllabus Topics */}
+                                    {q.syllabus_topics && q.syllabus_topics.length > 0 && (
+                                      <div className="flex flex-wrap gap-2 mb-3">
+                                        <span className="text-xs text-purple-400 font-semibold">📚 Focus Areas:</span>
+                                        {q.syllabus_topics.map((topic, topicIdx) => (
+                                          <span
+                                            key={topicIdx}
+                                            className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-full text-xs font-medium border border-purple-500/30"
+                                          >
+                                            {topic}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    
+                                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-pink-400">📊</span>
+                                        Probability: {Math.round(q.probability * 100)}%
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-orange-400">🔄</span>
+                                        Frequency: {q.frequency}x
+                                      </span>
+                                    </div>
+                                    
+                                    {/* Phase 2: ML Insights */}
+                                    {showMLInsights && <MLInsights question={q} />}
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                        <p className="mt-4 text-gray-500 text-sm italic">OR any other combination summing to 14 marks</p>
+
+                        {/* OR Divider */}
+                        <div className="flex items-center gap-4 my-6">
+                          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-orange-500/50 to-transparent"></div>
+                          <span className="text-orange-400 font-bold text-lg">OR</span>
+                          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-orange-500/50 to-transparent"></div>
+                        </div>
+
+                        {/* Set B */}
+                        <div>
+                          <p className="text-sm text-gray-400 mb-3 flex items-center gap-2">
+                            <span className="bg-blue-500/20 text-blue-300 px-2 py-1 rounded font-bold">SET B</span>
+                            Total: {data.setB?.totalMarks || 0} marks
+                          </p>
+                          <div className="space-y-4">
+                            {data.setB?.questions && data.setB.questions.map((q, idx) => (
+                              <div key={idx} className="bg-gray-800/50 rounded-lg p-5 hover:bg-gray-800 transition-colors">
+                                <div className="flex items-start gap-4">
+                                  <div className="flex-shrink-0">
+                                    <span className="inline-block bg-blue-500 text-white px-3 py-1 rounded-lg text-sm font-bold">
+                                      {q.marks}m
+                                    </span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-white font-medium mb-3 leading-relaxed break-words whitespace-normal">
+                                      {q.question}
+                                    </p>
+                                    
+                                    {/* Syllabus Topics */}
+                                    {q.syllabus_topics && q.syllabus_topics.length > 0 && (
+                                      <div className="flex flex-wrap gap-2 mb-3">
+                                        <span className="text-xs text-purple-400 font-semibold">📚 Focus Areas:</span>
+                                        {q.syllabus_topics.map((topic, topicIdx) => (
+                                          <span
+                                            key={topicIdx}
+                                            className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-full text-xs font-medium border border-purple-500/30"
+                                          >
+                                            {topic}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                    
+                                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-pink-400">📊</span>
+                                        Probability: {Math.round(q.probability * 100)}%
+                                      </span>
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-orange-400">🔄</span>
+                                        Frequency: {q.frequency}x
+                                      </span>
+                                    </div>
+                                    
+                                    {/* Phase 2: ML Insights */}
+                                    {showMLInsights && <MLInsights question={q} />}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <p className="mt-6 text-gray-500 text-sm italic">Choose either SET A or SET B (both sum to 14 marks)</p>
                       </div>
                     ))}
                   </div>

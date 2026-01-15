@@ -107,43 +107,97 @@ export const exportQuestionPredictionToPDF = async (predictions, logoPath = '/co
       currentY = 20;
     }
     
-    // Module heading with total marks
+    // Module heading
     doc.setFontSize(12);
     doc.setFont(undefined, 'bold');
-    doc.text(`${module} (Total: ${data.totalMarks} marks)`, 14, currentY);
+    doc.text(module, 14, currentY);
     currentY += 7;
     
-    // Questions
+    // SET A
     doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(255, 140, 0); // Orange color
+    doc.text(`SET A (Total: ${data.setA?.totalMarks || 0} marks)`, 20, currentY);
+    currentY += 5;
+    doc.setTextColor(0, 0, 0);
     doc.setFont(undefined, 'normal');
-    data.questions.forEach((q, idx) => {
-      // Check page break
-      if (currentY > 260) {
-        doc.addPage();
-        if (logo) addLogoToPage(doc, logo);
-        currentY = 20;
-      }
-      
-      // Question with marks badge
-      const questionText = `${idx + 1}. (${q.marks} marks) ${q.question}`;
-      const splitText = doc.splitTextToSize(questionText, 170);
-      doc.text(splitText, 20, currentY);
-      currentY += splitText.length * 5;
-      
-      // Metadata
-      doc.setFontSize(8);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`[Probability: ${Math.round(q.probability * 100)}% | Frequency: ${q.frequency}x]`, 25, currentY);
-      currentY += 7;
-      doc.setTextColor(0, 0, 0);
-      doc.setFontSize(10);
-    });
     
-    // OR note
+    if (data.setA?.questions) {
+      data.setA.questions.forEach((q, idx) => {
+        // Check page break
+        if (currentY > 260) {
+          doc.addPage();
+          if (logo) addLogoToPage(doc, logo);
+          currentY = 20;
+        }
+        
+        // Question with marks badge
+        const questionText = `${idx + 1}. (${q.marks} marks) ${q.question}`;
+        const splitText = doc.splitTextToSize(questionText, 160);
+        doc.text(splitText, 25, currentY);
+        currentY += splitText.length * 5;
+        
+        // Metadata
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`[Probability: ${Math.round(q.probability * 100)}% | Frequency: ${q.frequency}x]`, 30, currentY);
+        currentY += 7;
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(10);
+      });
+    }
+    
+    currentY += 3;
+    
+    // OR divider
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(255, 140, 0);
+    doc.text('OR', 20, currentY);
+    currentY += 7;
+    doc.setTextColor(0, 0, 0);
+    doc.setFont(undefined, 'normal');
+    
+    // SET B
+    doc.setFontSize(10);
+    doc.setFont(undefined, 'bold');
+    doc.setTextColor(0, 120, 255); // Blue color
+    doc.text(`SET B (Total: ${data.setB?.totalMarks || 0} marks)`, 20, currentY);
+    currentY += 5;
+    doc.setTextColor(0, 0, 0);
+    doc.setFont(undefined, 'normal');
+    
+    if (data.setB?.questions) {
+      data.setB.questions.forEach((q, idx) => {
+        // Check page break
+        if (currentY > 260) {
+          doc.addPage();
+          if (logo) addLogoToPage(doc, logo);
+          currentY = 20;
+        }
+        
+        // Question with marks badge
+        const questionText = `${idx + 1}. (${q.marks} marks) ${q.question}`;
+        const splitText = doc.splitTextToSize(questionText, 160);
+        doc.text(splitText, 25, currentY);
+        currentY += splitText.length * 5;
+        
+        // Metadata
+        doc.setFontSize(8);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`[Probability: ${Math.round(q.probability * 100)}% | Frequency: ${q.frequency}x]`, 30, currentY);
+        currentY += 7;
+        doc.setTextColor(0, 0, 0);
+        doc.setFontSize(10);
+      });
+    }
+    
+    // Note about choosing sets
+    currentY += 3;
     doc.setFontSize(9);
     doc.setFont(undefined, 'italic');
     doc.setTextColor(100, 100, 100);
-    doc.text('OR any other combination summing to 14 marks', 20, currentY);
+    doc.text('Choose either SET A or SET B (both sum to 14 marks)', 20, currentY);
     currentY += 10;
     doc.setTextColor(0, 0, 0);
     doc.setFont(undefined, 'normal');
