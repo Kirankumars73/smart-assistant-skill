@@ -82,6 +82,10 @@ const TimetableGenerator = () => {
   const [isSaving, setIsSaving] = useState(false); // Prevent double-save
   const [activeTab, setActiveTab] = useState(userRole === 'student' ? 'class' : 'faculty'); // Students default to class view
   
+  // Switch/swap cells state
+  const [selectedCells, setSelectedCells] = useState([]); // Array to store [row, col] of selected cells
+  const [switchingGridName, setSwitchingGridName] = useState(null); // Track which grid is in switch mode
+  
   // Saved timetables
   const [savedTimetables, setSavedTimetables] = useState([]);
   const [selectedTimetable, setSelectedTimetable] = useState(null);
@@ -673,12 +677,128 @@ const TimetableGenerator = () => {
   const goToStep = (step) => {
     setCurrentStep(step);
   };
+
+  // Handle cell selection for switching positions
+  const handleCellClick = (gridName, row, col) => {
+    // If grid name changed, reset selection
+    if (switchingGridName !== gridName) {
+      setSelectedCells([[row, col]]);
+      setSwitchingGridName(gridName);
+      return;
+    }
+
+    // Check if this cell is already selected
+    const cellIndex = selectedCells.findIndex(([r, c]) => r === row && c === col);
+    
+    if (cellIndex !== -1) {
+      // Deselect if clicking the same cell
+      const newSelection = selectedCells.filter((_, i) => i !== cellIndex);
+      if (newSelection.length === 0) {
+        setSwitchingGridName(null);
+      }
+      setSelectedCells(newSelection);
+    } else if (selectedCells.length < 2) {
+      // Add to selection if less than 2 cells selected
+      setSelectedCells([...selectedCells, [row, col]]);
+    } else {
+      // Replace oldest selection if 2 are already selected
+      setSelectedCells([selectedCells[1], [row, col]]);
+    }
+  };
+
+  // Perform the switch/swap operation
+  const performSwitch = (gridName, timetableData, isClass) => {
+    if (selectedCells.length !== 2) {
+      showToast('Please select exactly 2 cells to switch', 'warning');
+      return;
+    }
+
+    const [[row1, col1], [row2, col2]] = selectedCells;
+    
+    try {
+      // Create a copy of the timetables
+      const newFacultyTimetables = JSON.parse(JSON.stringify(generatedTimetable.facultyTimetables));
+      const newClassTimetables = JSON.parse(JSON.stringify(generatedTimetable.classTimetables));
+      
+      if (isClass) {
+        // Swap in class timetables
+        [newClassTimetables[gridName][row1][col1], newClassTimetables[gridName][row2][col2]] = 
+        [newClassTimetables[gridName][row2][col2], newClassTimetables[gridName][row1][col1]];
+      } else {
+        // Swap in faculty timetables
+        [newFacultyTimetables[gridName][row1][col1], newFacultyTimetables[gridName][row2][col2]] = 
+        [newFacultyTimetables[gridName][row2][col2], newFacultyTimetables[gridName][row1][col1]];
+      }
+      
+      // Update the timetable
+      setGeneratedTimetable({
+        ...generatedTimetable,
+        facultyTimetables: newFacultyTimetables,
+        classTimetables: newClassTimetables
+      });
+      
+      // Reset selection
+      setSelectedCells([]);
+      setSwitchingGridName(null);
+      
+      showToast('Positions switched successfully!', 'success');
+    } catch (error) {
+      console.error('Error switching cells:', error);
+      showToast('Failed to switch positions: ' + error.message, 'error');
+    }
+  };
+
+  // Reset switch mode
+  const resetSwitchMode = () => {
+    setSelectedCells([]);
+    setSwitchingGridName(null);
+  };
   
   // Render timetable grid
-  const renderTimetableGrid = (timetable, title, rows, cols) => {
+  const renderTimetableGrid = (timetable, title, rows, cols, isClass = false) => {
+    const isInSwitchMode = switchingGridName === title;
+    
     return (
       <div className="mb-8">
-        <h3 className="text-xl font-bold mb-4">{title}</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-bold">{title}</h3>
+          {isInSwitchMode ? (
+            <div className="flex gap-2 items-center">
+              <span className="text-sm text-amber-500">
+                {selectedCells.length === 0 
+                  ? 'Click 2 cells to switch' 
+                  : selectedCells.length === 1 
+                  ? 'Click 1 more cell' 
+                  : 'Ready to switch'}
+              </span>
+              {selectedCells.length === 2 && (
+                <button
+                  onClick={() => performSwitch(title, timetable, isClass)}
+                  className="px-3 py-1 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg transition-colors"
+                >
+                  ✅ Switch
+                </button>
+              )}
+              <button
+                onClick={resetSwitchMode}
+                className="px-3 py-1 bg-gray-600 hover:bg-gray-700 text-white text-sm rounded-lg transition-colors"
+              >
+                ❌ Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setSwitchingGridName(title);
+                setSelectedCells([]);
+              }}
+              className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
+              title="Switch positions of two cells"
+            >
+              🔄 Switch Positions
+            </button>
+          )}
+        </div>
         <div className="overflow-x-auto">
           <table className="min-w-full border-collapse border border-gray-700">
             <thead>
@@ -697,16 +817,28 @@ const TimetableGenerator = () => {
                   <td className="border border-gray-700 px-4 py-2 font-semibold">
                     Day {i + 1}
                   </td>
-                  {Array.from({ length: cols }, (_, j) => (
-                    <td 
-                      key={j} 
-                      className={`border border-gray-700 px-4 py-2 ${
-                        timetable[i][j] === 'FREE' ? 'text-gray-500' : 'text-white'
-                      }`}
-                    >
-                      {timetable[i][j]}
-                    </td>
-                  ))}
+                  {Array.from({ length: cols }, (_, j) => {
+                    const isSelected = selectedCells.some(([r, c]) => r === i && c === j);
+                    return (
+                      <td 
+                        key={j}
+                        onClick={() => isInSwitchMode && handleCellClick(title, i, j)}
+                        className={`border border-gray-700 px-4 py-2 ${
+                          timetable[i][j] === 'FREE' ? 'text-gray-500' : 'text-white'
+                        } ${
+                          isInSwitchMode 
+                            ? 'cursor-pointer hover:bg-gray-600' 
+                            : ''
+                        } ${
+                          isSelected 
+                            ? 'bg-amber-500 bg-opacity-40 border-amber-500 border-2' 
+                            : ''
+                        } transition-colors`}
+                      >
+                        {timetable[i][j]}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>
@@ -1408,7 +1540,7 @@ const TimetableGenerator = () => {
               <h3 className="text-2xl font-bold mb-4">Faculty Timetables</h3>
               {Object.entries(generatedTimetable.facultyTimetables).map(([name, timetable]) => (
               <div key={name}>
-                {renderTimetableGrid(timetable, name, config.rows, config.cols)}
+                {renderTimetableGrid(timetable, name, config.rows, config.cols, false)}
               </div>
               ))}
             </div>
@@ -1420,7 +1552,7 @@ const TimetableGenerator = () => {
               <h3 className="text-2xl font-bold mb-4">Class Timetables</h3>
               {Object.entries(generatedTimetable.classTimetables).map(([name, timetable]) => (
               <div key={name}>
-                {renderTimetableGrid(timetable, name, config.rows, config.cols)}
+                {renderTimetableGrid(timetable, name, config.rows, config.cols, true)}
               </div>
               ))}
             </div>
