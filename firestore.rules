@@ -14,29 +14,35 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email.matches('.*@gmail.com$');
     }
     
-    // Get user's role from users collection
+    // Get user's role from users collection (with error handling)
     function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return userDoc.data.role;
+    }
+    
+    // Safely check if user has a specific role
+    function hasRole(role) {
+      return isSignedIn() && getUserRole() == role;
     }
     
     // Check if user is admin
     function isAdmin() {
-      return isSignedIn() && getUserRole() == 'admin';
+      return hasRole('admin');
     }
     
     // Check if user is faculty
     function isFaculty() {
-      return isSignedIn() && getUserRole() == 'faculty';
+      return hasRole('faculty');
     }
     
     // Check if user is student
     function isStudent() {
-      return isSignedIn() && getUserRole() == 'student';
+      return hasRole('student');
     }
     
     // Check if user is parent
     function isParent() {
-      return isSignedIn() && getUserRole() == 'parent';
+      return hasRole('parent');
     }
     
     // Check if user has faculty-level access (admin or faculty)
@@ -77,14 +83,17 @@ service cloud.firestore {
       // Faculty/Admin can create student records
       allow create: if hasFacultyAccess();
       
-      // Faculty/Admin can read all records
-      // Students can read their own record (matching studentId field)
-      // Parents can read ANY student record (needed for verification/linking)
+      // Read access rules:
+      // 1. Faculty/Admin can read all student records
+      // 2. Students can read their own record (matching studentId field)
+      // 3. Parents can read ANY student record (needed for verification/linking during onboarding)
+      // 4. Any Gmail user can read students collection (for public student search)
       allow read: if hasFacultyAccess() || 
+                     isParent() ||
                      (isStudent() && 
                       get(/databases/$(database)/documents/students/$(studentId)).data.studentId == 
                       get(/databases/$(database)/documents/users/$(request.auth.uid)).data.studentId) ||
-                     isParent();  // Parents can read to verify student IDs during linking
+                     isGmail();  // Allow any Gmail user to read students (for parent linking search)
       
       // Only Faculty/Admin can update student records
       allow update: if hasFacultyAccess();
