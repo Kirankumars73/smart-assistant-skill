@@ -85,6 +85,7 @@ const TimetableGenerator = () => {
   // Switch/swap cells state
   const [selectedCells, setSelectedCells] = useState([]); // Array to store [row, col] of selected cells
   const [switchingGridName, setSwitchingGridName] = useState(null); // Track which grid is in switch mode
+  const [isUpdating, setIsUpdating] = useState(false); // Track update operation status
   
   // Saved timetables
   const [savedTimetables, setSavedTimetables] = useState([]);
@@ -203,6 +204,12 @@ const TimetableGenerator = () => {
       showToast('No timetable to update', 'warning');
       return;
     }
+
+    if (isUpdating) {
+      return; // Prevent double-click
+    }
+    
+    setIsUpdating(true);
     
     try {
       // Serialize timetables to avoid nested arrays
@@ -231,6 +238,8 @@ const TimetableGenerator = () => {
     } catch (error) {
       console.error('Error updating timetable:', error);
       showToast('Failed to update timetable: ' + error.message, 'error');
+    } finally {
+      setIsUpdating(false);
     }
   };
   
@@ -254,6 +263,9 @@ const TimetableGenerator = () => {
     setConflicts([]);
     setCurrentStep(1);
     setViewMode('create');
+    setSelectedCells([]);
+    setSwitchingGridName(null);
+    setIsUpdating(false);
   };
   
   // Step 1: Configuration
@@ -1561,8 +1573,11 @@ const TimetableGenerator = () => {
           {/* Action Buttons */}
           <div className="flex flex-wrap gap-4 mt-8">
             {selectedTimetable ? (
-              <GradientButton onClick={updateTimetable}>
-                💾 Update Timetable
+              <GradientButton 
+                onClick={updateTimetable}
+                disabled={isUpdating || !generatedTimetable}
+              >
+                {isUpdating ? '⏳ Updating...' : '💾 Update Timetable'}
               </GradientButton>
             ) : (
               <GradientButton onClick={saveTimetable} disabled={isSaving}>
