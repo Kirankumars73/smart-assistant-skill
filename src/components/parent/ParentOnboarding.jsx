@@ -32,7 +32,7 @@ function ParentOnboarding({ isOpen, userId, onComplete }) {
       const student = await verifyStudentId(studentId.trim());
       
       if (!student) {
-        setError('Student ID not found. Please check and try again.');
+        setError('❌ Student ID not found. Please verify the ID and try again. Check the browser console for debugging information.');
         setVerifiedStudent(null);
       } else {
         setVerifiedStudent(student);

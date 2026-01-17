@@ -8,20 +8,35 @@ import { db } from '../config/firebase';
  */
 export const verifyStudentId = async (studentId) => {
   try {
-    console.log('🔍 Verifying student ID:', studentId);
+    if (!studentId || typeof studentId !== 'string') {
+      console.warn('❌ Invalid student ID:', studentId);
+      return null;
+    }
+
+    const normalizedId = studentId.trim().toUpperCase();
+    console.log('🔍 Verifying student ID:', normalizedId);
     
     const studentsRef = collection(db, 'students');
-    const q = query(studentsRef, where('studentId', '==', studentId.toUpperCase()));
     
-    console.log('📊 Querying Firestore for studentId:', studentId.toUpperCase());
-    const querySnapshot = await getDocs(q);
+    // First attempt: exact match with normalized case
+    let q = query(studentsRef, where('studentId', '==', normalizedId));
+    console.log('📊 Querying Firestore for studentId:', normalizedId);
+    let querySnapshot = await getDocs(q);
     
     console.log('📈 Query results:', querySnapshot.size, 'documents found');
 
     if (querySnapshot.empty) {
+      // Second attempt: try lowercase
+      console.log('⚠️ No exact match found, trying lowercase...');
+      q = query(studentsRef, where('studentId', '==', normalizedId.toLowerCase()));
+      querySnapshot = await getDocs(q);
+      console.log('📈 Lowercase query results:', querySnapshot.size, 'documents found');
+    }
+
+    if (querySnapshot.empty) {
       console.warn('⚠️ No student found with ID:', studentId);
       
-      // DEBUG: Try to find if field name is different
+      // DEBUG: Try to find if field name is different or fetch all to check structure
       const allStudentsQuery = query(studentsRef);
       const allDocs = await getDocs(allStudentsQuery);
       console.log('🔍 Total students in database:', allDocs.size);
@@ -30,6 +45,13 @@ export const verifyStudentId = async (studentId) => {
         const sampleDoc = allDocs.docs[0].data();
         console.log('📋 Sample student document fields:', Object.keys(sampleDoc));
         console.log('📋 Sample studentId field value:', sampleDoc.studentId || sampleDoc.student_id || 'FIELD NOT FOUND');
+        console.log('📋 Sample rollNumber field value:', sampleDoc.rollNumber || 'NOT FOUND');
+        
+        // Show first 5 student IDs for debugging
+        console.log('📋 First 5 student IDs in database:');
+        allDocs.docs.slice(0, 5).forEach((doc, idx) => {
+          console.log(`  ${idx + 1}. "${doc.data().studentId}" (name: ${doc.data().name})`);
+        });
       }
       
       return null;
