@@ -13,6 +13,7 @@ import QuestionPrediction from './pages/QuestionPrediction';
 import AdminPanel from './pages/AdminPanel';
 import ParentDashboard from './pages/ParentDashboard';
 import NotificationsPage from './pages/NotificationsPage';
+import StudyMaterialGenerator from './pages/StudyMaterialGenerator';
 import ChatbotWidget from './components/chatbot/ChatbotWidget';
 import './index.css';
 
@@ -90,6 +91,16 @@ function AppContent() {
           element={
             <ProtectedRoute requireFacultyAccess>
               <NotificationsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Study Material Generator (All authenticated users - Students can access!) */}
+        <Route
+          path="/study-materials"
+          element={
+            <ProtectedRoute>
+              <StudyMaterialGenerator />
             </ProtectedRoute>
           }
         />

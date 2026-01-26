@@ -136,6 +136,27 @@ service cloud.firestore {
       );
     }
     
+    // NOTIFICATIONS COLLECTION
+    match /notifications/{notificationId} {
+      // Students can create notifications (for clearance requests)
+      // Must include required fields and valid studentId
+      allow create: if isGmail() && 
+                       request.resource.data.type == 'backlog_clearance' &&
+                       request.resource.data.studentId is string &&
+                       request.resource.data.studentName is string &&
+                       request.resource.data.subjectCode is string &&
+                       request.resource.data.subjectName is string;
+      
+      // Faculty/Admin can read all notifications
+      allow read: if hasFacultyAccess();
+      
+      // Only Faculty/Admin can update notifications (approve/reject)
+      allow update: if hasFacultyAccess();
+      
+      // Only Faculty/Admin can delete notifications
+      allow delete: if hasFacultyAccess();
+    }
+    
     // DENY ALL OTHER COLLECTIONS
     // Any collection not explicitly defined above is denied
     match /{document=**} {

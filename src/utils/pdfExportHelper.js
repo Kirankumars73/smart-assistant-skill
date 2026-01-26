@@ -1,4 +1,4 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 /**
@@ -8,8 +8,13 @@ export const exportFacultyTimetablesToPDF = async (facultyTimetables, config, lo
   const doc = new jsPDF('landscape');
   let isFirstPage = true;
   
-  // Load logo
-  const logo = await loadImage(logoPath);
+  // Load logo (optional)
+  let logo = null;
+  try {
+    logo = await loadImage(logoPath);
+  } catch (error) {
+    console.warn('Logo not found, continuing without it:', error);
+  }
   
   Object.entries(facultyTimetables).forEach(([facultyName, timetable]) => {
     if (!isFirstPage) {
@@ -25,7 +30,7 @@ export const exportFacultyTimetablesToPDF = async (facultyTimetables, config, lo
     // Prepare table data
     const tableData = prepareTimetableData(timetable, config.rows, config.cols);
     
-    // Add table
+    // Add table using autoTable plugin
     autoTable(doc, {
       startY: 25,
       head: [tableData.headers],
@@ -38,8 +43,8 @@ export const exportFacultyTimetablesToPDF = async (facultyTimetables, config, lo
       }
     });
     
-    // Add logo to bottom right
-    addLogoToPage(doc, logo);
+    // Add logo to bottom right (if available)
+    if (logo) addLogoToPage(doc, logo);
   });
   
   // Save PDF
@@ -53,8 +58,13 @@ export const exportClassTimetablesToPDF = async (classTimetables, config, logoPa
   const doc = new jsPDF('landscape');
   let isFirstPage = true;
   
-  // Load logo
-  const logo = await loadImage(logoPath);
+  // Load logo (optional)
+  let logo = null;
+  try {
+    logo = await loadImage(logoPath);
+  } catch (error) {
+    console.warn('Logo not found, continuing without it:', error);
+  }
   
   Object.entries(classTimetables).forEach(([className, timetable]) => {
     if (!isFirstPage) {
@@ -70,7 +80,7 @@ export const exportClassTimetablesToPDF = async (classTimetables, config, logoPa
     // Prepare table data
     const tableData = prepareTimetableData(timetable, config.rows, config.cols);
     
-    // Add table
+    // Add table using autoTable plugin
     autoTable(doc, {
       startY: 25,
       head: [tableData.headers],
@@ -83,8 +93,8 @@ export const exportClassTimetablesToPDF = async (classTimetables, config, logoPa
       }
     });
     
-    // Add logo to bottom right
-    addLogoToPage(doc, logo);
+    // Add logo to bottom right (if available)
+    if (logo) addLogoToPage(doc, logo);
   });
   
   // Save PDF

@@ -1,8 +1,12 @@
 /**
  * Timetable Generation Service
- * Implements backtracking algorithm for automatic timetable generation
- * Based on constraint satisfaction and recursive assignment
+ * Supports TWO algorithms:
+ * 1. Backtracking (original) - Fast for simple cases
+ * 2. Genetic Algorithm (new) - Better for complex constraints
+ * Based on constraint satisfaction and evolutionary optimization
  */
+
+import * as GeneticAlgorithm from './geneticAlgorithmService';
 
 // Global timetable state
 let facultyTimetable = {};  // { facultyName: [[...], [...]] }
@@ -613,4 +617,120 @@ export const getFacultyList = () => {
  */
 export const getClassList = () => {
   return Object.keys(classTimetable);
+};
+
+// ==================== GENETIC ALGORITHM INTEGRATION ====================
+
+/**
+ * Convert assignments to GA format
+ */
+const convertAssignmentsForGA = () => {
+  const allFacultyData = getAllFacultyData();
+  return allFacultyData.map(({ facultyName, className, limit, subjectName }) => ({
+    facultyName,
+    className,
+    subjectName,
+    weeklyLimit: limit,
+    isLab: false,
+    consecutivePeriods: 1,
+    additionalFaculties: []
+  }));
+};
+
+/**
+ * Convert lab data to GA format
+ */
+const convertLabDataForGA = () => {
+  const allLabData = getAllLabData();
+  return allLabData.map(({ limit, count, faculties, className, subjectName, isLab }) => ({
+    facultyName: faculties[0],
+    className,
+    subjectName,
+    weeklyLimit: limit,
+    isLab,
+    consecutivePeriods: count,
+    additionalFaculties: faculties.slice(1)
+  }));
+};
+
+/**
+ * Generate timetable using Genetic Algorithm
+ * @param {Object} gaConfig - GA parameters (optional)
+ * @param {Function} onProgress - Progress callback (optional)
+ */
+export const generateTimetableWithGA = async (gaConfig = {}, onProgress = null) => {
+  try {
+    console.log('🧬 Starting Genetic Algorithm Timetable Generation...');
+    
+    // Get all data
+    const faculties = Object.keys(facultyTimetable);
+    const classes = Object.keys(classTimetable);
+    const regularAssignments = convertAssignmentsForGA();
+    const labAssignments = convertLabDataForGA();
+    const manualAssignments = getAllManualData().map(({ facultyName, className, subjectName, day, time }) => ({
+      facultyName,
+      className,
+      subjectName,
+      day,
+      period: time
+    }));
+    
+    // Prepare config
+    const config = {
+      rows,
+      cols,
+      ...gaConfig
+    };
+    
+    // Run GA
+    const bestChromosome = await GeneticAlgorithm.runGeneticAlgorithm(
+      config,
+      faculties,
+      classes,
+      regularAssignments,
+      manualAssignments,
+      labAssignments,
+      onProgress
+    );
+    
+    if (!bestChromosome) {
+      return {
+        success: false,
+        message: 'Genetic Algorithm failed to generate timetable',
+        facultyTimetables: facultyTimetable,
+        classTimetables: classTimetable
+      };
+    }
+    
+    // Apply best solution to our timetables
+    facultyTimetable = bestChromosome.genes.faculty;
+    classTimetable = bestChromosome.genes.class;
+    
+    // Check if solution is acceptable
+    const hasHardViolations = bestChromosome.conflicts.some(c => 
+      ['FACULTY_DOUBLE_BOOKING', 'CLASS_DOUBLE_BOOKING', 'LAB_NON_CONSECUTIVE'].includes(c.type)
+    );
+    
+    return {
+      success: !hasHardViolations,
+      message: hasHardViolations 
+        ? `Timetable generated with ${bestChromosome.conflicts.length} constraint violations (best effort)`
+        : 'Timetable generated successfully with GA!',
+      facultyTimetables: facultyTimetable,
+      classTimetables: classTimetable,
+      fitness: bestChromosome.fitness,
+      conflicts: bestChromosome.conflicts,
+      generation: bestChromosome.generation,
+      algorithm: 'genetic'
+    };
+    
+  } catch (error) {
+    console.error('Error in Genetic Algorithm:', error);
+    return {
+      success: false,
+      message: `GA Error: ${error.message}`,
+      facultyTimetables: facultyTimetable,
+      classTimetables: classTimetable
+    };
+  }
 };

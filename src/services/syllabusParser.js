@@ -13,6 +13,11 @@ const extractKeywords = (text) => {
     'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been',
     'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should',
     'could', 'may', 'might', 'must', 'can', 'its', 'it', 'this', 'that',
+    /* The line `'these', 'those', 'only', 'brief', 'definition', 'examples', 'example'` is creating a
+    Set called `commonWords` that contains common words that are typically not considered important
+    keywords when extracting keywords from text. These common words are filtered out during the
+    keyword extraction process to focus on more meaningful terms that can better represent the
+    content of the text. */
     'these', 'those', 'only', 'brief', 'definition', 'examples', 'example'
   ]);
 

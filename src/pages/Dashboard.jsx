@@ -15,8 +15,44 @@ import { createClearanceNotification, hasPendingClearanceRequest } from '../serv
 import { useToast } from '../hooks/useToast';
 
 const Dashboard = () => {
+  // ALL HOOKS MUST BE AT THE TOP - BEFORE ANY CONDITIONAL RETURNS
   const { userRole, currentUser } = useAuth();
   const { showToast } = useToast();
+  const [studentData, setStudentData] = useState(null);
+  const [isRegisteredStudent, setIsRegisteredStudent] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [searchId, setSearchId] = useState('');
+  const [searchResult, setSearchResult] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [requestingClearance, setRequestingClearance] = useState(null);
+
+  // Check if student is registered by email - MUST BE BEFORE CONDITIONAL RETURNS
+  useEffect(() => {
+    const checkStudentRegistration = async () => {
+      if (userRole === 'student' && currentUser?.email) {
+        try {
+          const studentsRef = collection(db, 'students');
+          const q = query(studentsRef, where('email', '==', currentUser.email));
+          const querySnapshot = await getDocs(q);
+          
+          if (!querySnapshot.empty) {
+            const studentDoc = querySnapshot.docs[0];
+            setStudentData({ id: studentDoc.id, ...studentDoc.data() });
+            setIsRegisteredStudent(true);
+          } else {
+            setIsRegisteredStudent(false);
+          }
+        } catch (error) {
+          console.error('Error checking student registration:', error);
+          setIsRegisteredStudent(false);
+        }
+      }
+      setLoading(false);
+    };
+
+    checkStudentRegistration();
+  }, [userRole, currentUser]);
 
   // Show beautiful loading animation while role is being fetched
   if (currentUser && userRole === null) {
@@ -54,42 +90,6 @@ const Dashboard = () => {
   if (userRole === 'parent') {
     return <Navigate to="/parent-dashboard" replace />;
   }
-
-  const [studentData, setStudentData] = useState(null);
-  const [isRegisteredStudent, setIsRegisteredStudent] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [searchId, setSearchId] = useState('');
-  const [searchResult, setSearchResult] = useState(null);
-  const [searching, setSearching] = useState(false);
-  const [searchError, setSearchError] = useState('');
-  const [requestingClearance, setRequestingClearance] = useState(null);
-
-  // Check if student is registered by email
-  useEffect(() => {
-    const checkStudentRegistration = async () => {
-      if (userRole === 'student' && currentUser?.email) {
-        try {
-          const studentsRef = collection(db, 'students');
-          const q = query(studentsRef, where('email', '==', currentUser.email));
-          const querySnapshot = await getDocs(q);
-          
-          if (!querySnapshot.empty) {
-            const studentDoc = querySnapshot.docs[0];
-            setStudentData({ id: studentDoc.id, ...studentDoc.data() });
-            setIsRegisteredStudent(true);
-          } else {
-            setIsRegisteredStudent(false);
-          }
-        } catch (error) {
-          console.error('Error checking student registration:', error);
-          setIsRegisteredStudent(false);
-        }
-      }
-      setLoading(false);
-    };
-
-    checkStudentRegistration();
-  }, [userRole, currentUser]);
 
   // Search for student by ID
   const handleSearchById = async (e) => {
@@ -198,6 +198,7 @@ const Dashboard = () => {
   ];
 
   const studentServices = [
+    { title: 'AI Study Materials', description: 'Generate notes, diagrams \u0026 practice questions', icon: '📚', path: '/study-materials', color: 'from-pink-500 to-orange-500' },
     { title: 'Predicted Questions', description: 'Study smart with AI predictions', icon: '📝', path: '/questions', color: 'from-indigo-500 to-purple-500' },
     { title: 'My Timetable', description: 'View class schedule', icon: '📅', path: '/timetable', color: 'from-orange-500 to-pink-500' },
   ];

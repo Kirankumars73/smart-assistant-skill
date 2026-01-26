@@ -1,9 +1,6 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../config/firebase';
-
-// Initialize Gemini AI
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+import { generateContent, generateContentStream } from './geminiKeyManager';
 
 /**
  * Fetch context data from Firestore for AI
@@ -183,16 +180,10 @@ ${branch} BRANCH DATA:
   return userInput;
 };
 
-/**
- * Process user query with Gemini AI
- */
 export const processQueryWithAI = async (userInput) => {
   try {
     // Fetch context data
     const context = await fetchContextData();
-    
-    // Initialize model (gemini-2.5-flash confirmed available via API query)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     
     // Build enhanced query
     const enhancedQuery = buildUserQuery(userInput, context);
@@ -200,24 +191,17 @@ export const processQueryWithAI = async (userInput) => {
     // Build full prompt with system context
     const fullPrompt = `${buildSystemPrompt(context)}\n\nUser Query: ${enhancedQuery}`;
 
-    // Generate response
-    const result = await model.generateContent(fullPrompt);
-    const response = await result.response;
-    const text = response.text();
+    // Generate response using key manager (with automatic rotation & caching)
+    const text = await generateContent(fullPrompt, {
+      model: 'gemini-2.5-flash',
+      useCache: true, // Enable caching for repeated queries
+      maxRetries: 3
+    });
 
     return text;
   } catch (error) {
     console.error('Gemini AI Error:', error);
-    
-    // Fallback error messages
-    if (error.message?.includes('API key')) {
-      return '⚠️ AI service configuration error. Please check the API key.';
-    }
-    if (error.message?.includes('quota')) {
-      return '⚠️ AI service quota exceeded. Please try again later.';
-    }
-    
-    return '⚠️ I encountered an error processing your request. Please try rephrasing your question.';
+    return error.message || '⚠️ I encountered an error processing your request. Please try again later.';
   }
 };
 
@@ -227,19 +211,14 @@ export const processQueryWithAI = async (userInput) => {
 export const streamQueryWithAI = async (userInput, onChunk) => {
   try {
     const context = await fetchContextData();
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-
     const enhancedQuery = buildUserQuery(userInput, context);
     const fullPrompt = `${buildSystemPrompt(context)}\n\nUser Query: ${enhancedQuery}`;
     
-    const result = await model.generateContentStream(fullPrompt);
-
-    let fullText = '';
-    for await (const chunk of result.stream) {
-      const chunkText = chunk.text();
-      fullText += chunkText;
-      if (onChunk) onChunk(chunkText, fullText);
-    }
+    // Stream using key manager (with automatic rotation)
+    const fullText = await generateContentStream(fullPrompt, onChunk, {
+      model: 'gemini-2.5-flash',
+      maxRetries: 3
+    });
 
     return fullText;
   } catch (error) {

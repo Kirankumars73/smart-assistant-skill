@@ -107,3 +107,63 @@ html {
   background-color: rgba(129, 140, 248, 0.2);
   color: white;
 }
+
+/* Voice Assistant Animations */
+@keyframes voice-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.7);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 0 0 10px rgba(236, 72, 153, 0);
+  }
+}
+
+@keyframes waveform {
+  0%, 100% {
+    height: 4px;
+  }
+  50% {
+    height: 24px;
+  }
+}
+
+@keyframes microphone-active {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.voice-active {
+  animation: voice-pulse 2s ease-in-out infinite;
+}
+
+.waveform-bar {
+  animation: waveform 0.5s ease-in-out infinite;
+}
+
+/* Smooth transitions for voice mode */
+.voice-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Speaking indicator glow */
+@keyframes speaking-glow {
+  0%, 100% {
+    opacity: 0.5;
+    filter: brightness(1);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.2);
+  }
+}
+
+.speaking-indicator {
+  animation: speaking-glow 1.5s ease-in-out infinite;
+}
+

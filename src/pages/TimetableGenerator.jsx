@@ -24,7 +24,7 @@ import { exportFacultyTimetablesToPDF, exportClassTimetablesToPDF } from '../uti
 
 const TimetableGenerator = () => {
   const { currentUser, userRole } = useAuth();
-  const showToast = useToast();
+  const { showSuccess, showError, showWarning } = useToast();
   const { confirm, isOpen: isConfirmOpen, config: confirmConfig, handleConfirm, handleCancel } = useConfirm();
   
   // Wizard step management
@@ -102,6 +102,24 @@ const TimetableGenerator = () => {
   // Delete confirmation
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [timetableToDelete, setTimetableToDelete] = useState(null);
+  
+  // Genetic Algorithm state
+  const [algorithm, setAlgorithm] = useState('genetic'); // 'backtracking' or 'genetic'
+  const [gaParams, setGaParams] = useState({
+    populationSize: 100,
+    maxGenerations: 500,
+    mutationRate: 0.15,
+    crossoverRate: 0.80,
+    elitismCount: 10,
+    tournamentSize: 5
+  });
+  const [gaProgress, setGaProgress] = useState({
+    generation: 0,
+    bestFitness: 0,
+    avgFitness: 0,
+    conflicts: 0,
+    isRunning: false
+  });
   
   // Load saved timetables on mount
   useEffect(() => {
@@ -393,6 +411,7 @@ const TimetableGenerator = () => {
   // Step 7 (formerly Step 6): Generate Timetable
   const generateTimetable = async () => {
     setIsGenerating(true);
+    setGaProgress({ generation: 0, bestFitness: 0, avgFitness: 0, conflicts: 0, isRunning: true });
     
     try {
       // Extract all subjects from classes for the algorithm
@@ -421,6 +440,7 @@ const TimetableGenerator = () => {
       if (!validation.valid) {
         showToast('Configuration errors: ' + validation.errors.join(', '), 'error');
         setIsGenerating(false);
+        setGaProgress(prev => ({ ...prev, isRunning: false }));
         return;
       }
       
@@ -472,8 +492,29 @@ const TimetableGenerator = () => {
         }
       }
       
-      // Generate the timetable
-      const result = TimetableService.generateTimetable();
+      // Generate the timetable using selected algorithm
+      let result;
+      
+      if (algorithm === 'genetic') {
+        console.log('🧬 Using Genetic Algorithm');
+        
+        // Progress callback for GA
+        const onProgress = (progress) => {
+          setGaProgress({
+            generation: progress.generation,
+            bestFitness: progress.bestFitness,
+            avgFitness: progress.avgFitness,
+            conflicts: progress.conflicts,
+            isRunning: true
+          });
+        };
+        
+        result = await TimetableService.generateTimetableWithGA(gaParams, onProgress);
+        
+      } else {
+        console.log('🔄 Using Backtracking Algorithm');
+        result = TimetableService.generateTimetable();
+      }
       
       if (result.success) {
         setGeneratedTimetable(result);
@@ -492,6 +533,12 @@ const TimetableGenerator = () => {
         } else {
           console.log('✅ Timetable generated successfully with no conflicts');
         }
+        
+        // Show success message with algorithm info
+        const algorithmName = algorithm === 'genetic' ? 'Genetic Algorithm' : 'Backtracking';
+        const fitnessInfo = result.fitness ? ` (Fitness: ${result.fitness})` : '';
+        showToast(`Timetable generated successfully using ${algorithmName}!${fitnessInfo}`, 'success');
+        
       } else {
         showToast(result.message, 'error');
       }
@@ -500,6 +547,7 @@ const TimetableGenerator = () => {
       showToast('Failed to generate timetable: ' + error.message, 'error');
     } finally {
       setIsGenerating(false);
+      setGaProgress(prev => ({ ...prev, isRunning: false }));
     }
   };
   
@@ -669,7 +717,7 @@ const TimetableGenerator = () => {
       }
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      showToast('Failed to export PDF: ' + error.message, 'error');
+      showError('Failed to export PDF: ' + error.message);
     }
   };
   
@@ -1499,18 +1547,150 @@ const TimetableGenerator = () => {
       <h2 className="text-2xl font-bold mb-6">Step 6: Generate & Review Timetable</h2>
       
       {!generatedTimetable ? (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">📅</div>
-          <p className="text-gray-400 mb-6">
-            Ready to generate your timetable with all configurations.
-          </p>
-          <GradientButton
-            onClick={generateTimetable}
-            disabled={isGenerating}
-            size="lg"
-          >
-            {isGenerating ? 'Generating...' : 'Generate Timetable'}
-          </GradientButton>
+        <div className="space-y-6">
+          {/* Algorithm Selector */}
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h3 className="text-lg font-bold mb-4">🧬 Algorithm Selection</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <button
+                onClick={() => setAlgorithm('genetic')}
+                className={`p-4 rounded-lg border-2 transition-all ${
+                  algorithm === 'genetic'
+                    ? 'border-pink-500 bg-pink-500/10'
+                    : 'border-gray-700 bg-gray-900 hover:border-gray-600'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">🧬</div>
+                  <div className="text-left">
+                    <div className="font-bold text-white">Genetic Algorithm</div>
+                    <div className="text-sm text-gray-400">Best for complex constraints</div>
+                  </div>
+                  {algorithm === 'genetic' && <div className="ml-auto text-pink-500">✓</div>}
+                </div>
+              </button>
+              
+              <button
+                onClick={() => setAlgorithm('backtracking')}
+                className={`p-4 rounded-lg border-2 transition-all ${
+                  algorithm === 'backtracking'
+                    ? 'border-pink-500 bg-pink-500/10'
+                    : 'border-gray-700 bg-gray-900 hover:border-gray-600'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-3xl">🔄</div>
+                  <div className="text-left">
+                    <div className="font-bold text-white">Backtracking</div>
+                    <div className="text-sm text-gray-400">Fast for simple cases</div>
+                  </div>
+                  {algorithm === 'backtracking' && <div className="ml-auto text-pink-500">✓</div>}
+                </div>
+              </button>
+            </div>
+            
+            {/* GA Parameters (shown when GA is selected) */}
+            {algorithm === 'genetic' && (
+              <div className="space-y-4 mt-6 border-t border-gray-700 pt-6">
+                <h4 className="font-semibold text-white mb-3">Genetic Algorithm Parameters</h4>
+                
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Population Size</label>
+                    <input
+                      type="number"
+                      min="50"
+                      max="200"
+                      value={gaParams.populationSize}
+                      onChange={(e) => setGaParams(prev => ({ ...prev, populationSize: parseInt(e.target.value) || 100 }))}
+                      className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Max Generations</label>
+                    <input
+                      type="number"
+                      min="100"
+                      max="1000"
+                      value={gaParams.maxGenerations}
+                      onChange={(e) => setGaParams(prev => ({ ...prev, maxGenerations: parseInt(e.target.value) || 500 }))}
+                      className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm text-gray-400 mb-2">Mutation Rate</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="1"
+                      value={gaParams.mutationRate}
+                      onChange={(e) => setGaParams(prev => ({ ...prev, mutationRate: parseFloat(e.target.value) || 0.15 }))}
+                      className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* GA Progress Display (shown when GA is running) */}
+          {gaProgress.isRunning && algorithm === 'genetic' && (
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h3 className="text-lg font-bold mb-4">📊 Evolution Progress</h3>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-pink-500">{gaProgress.generation}</div>
+                  <div className="text-sm text-gray-400">Generation</div>
+                </div>
+                
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-500">{Math.round(gaProgress.bestFitness)}</div>
+                  <div className="text-sm text-gray-400">Best Fitness</div>
+                </div>
+                
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-500">{Math.round(gaProgress.avgFitness)}</div>
+                  <div className="text-sm text-gray-400">Avg Fitness</div>
+                </div>
+                
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-amber-500">{gaProgress.conflicts}</div>
+                  <div className="text-sm text-gray-400">Conflicts</div>
+                </div>
+              </div>
+              
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-700 rounded-full h-2 mb-2">
+                <div 
+                  className="bg-gradient-to-r from-pink-500 to-purple-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${(gaProgress.generation / gaParams.maxGenerations) * 100}%` }}
+                ></div>
+              </div>
+              <div className="text-xs text-gray-400 text-right">
+                {Math.round((gaProgress.generation / gaParams.maxGenerations) * 100)}% Complete
+              </div>
+            </div>
+          )}
+          
+          {/* Generate Button */}
+          <div className="text-center py-6">
+            <div className="text-6xl mb-4">📅</div>
+            <p className="text-gray-400 mb-6">
+              Ready to generate your timetable with {algorithm === 'genetic' ? 'Genetic Algorithm' : 'Backtracking'}.
+            </p>
+            <GradientButton
+              onClick={generateTimetable}
+              disabled={isGenerating}
+              size="lg"
+            >
+              {isGenerating ? (algorithm === 'genetic' ? '🧬 Evolving...' : '🔄 Generating...') : 'Generate Timetable'}
+            </GradientButton>
+          </div>
         </div>
       ) : (
         <div>
