@@ -609,13 +609,13 @@ const Dashboard = () => {
 
   // Default dashboard for faculty/admin
   return (
-    <div className="min-h-screen bg-midnight">
+    <div className="min-h-screen bg-midnight relative">
       <NoiseTexture />
       <FloatingOrbs />
       <div className="mesh-gradient-bg" />
       <Navbar />
       
-      <div className="pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 pt-24 pb-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
