@@ -1,45 +1,42 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import clsx from 'clsx';
 
 const GradientButton = ({ 
   children, 
-  onClick, 
-  type = 'button',
-  variant = 'primary',
-  size = 'md',
-  className = '',
+  className = '', 
   disabled = false,
+  variant = 'cyan', // 'cyan' | 'purple' | 'blue'
+  size = 'md', // 'sm' | 'md' | 'lg'
+  type = 'button',
   ...props 
 }) => {
-  // Muted, professional colors
-  const variants = {
-    primary: 'bg-gradient-to-r from-indigo-500 to-purple-500',
-    secondary: 'bg-gray-700 hover:bg-gray-600',
-    success: 'bg-gradient-to-r from-emerald-500 to-teal-500',
-    danger: 'bg-gradient-to-r from-red-500 to-rose-500'
-  };
-
-  const sizes = {
+  const sizeClasses = {
     sm: 'px-4 py-2 text-sm',
     md: 'px-6 py-3 text-base',
-    lg: 'px-8 py-4 text-lg'
+    lg: 'px-8 py-4 text-lg',
+  };
+
+  const variantClasses = {
+    cyan: 'bg-gradient-to-r from-glow-cyan to-glow-blue hover:from-glow-cyan-light hover:to-glow-blue-light shadow-glow',
+    purple: 'bg-gradient-to-r from-glow-purple to-glow-pink hover:from-glow-purple-light hover:to-glow-pink-light shadow-glow-purple',
+    blue: 'bg-gradient-to-r from-glow-blue to-glow-purple hover:from-glow-blue-light hover:to-glow-purple-light shadow-glow-blue',
   };
 
   return (
     <motion.button
       type={type}
-      onClick={onClick}
       disabled={disabled}
-      whileHover={{ scale: disabled ? 1 : 1.02 }}
-      whileTap={{ scale: disabled ? 1 : 0.98 }}
-      className={clsx(
-        'rounded-lg font-semibold transition-all duration-200',
-        'disabled:opacity-50 disabled:cursor-not-allowed',
-        variants[variant],
-        sizes[size],
-        className
-      )}
+      whileHover={{ scale: 1.02, y: -2 }}
+      whileTap={{ scale: 0.98 }}
+      className={`
+        ${sizeClasses[size]}
+        ${variantClasses[variant]}
+        rounded-xl font-semibold
+        glow-button ripple
+        transition-all duration-300
+        disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
+        ${className}
+      `}
       {...props}
     >
       {children}

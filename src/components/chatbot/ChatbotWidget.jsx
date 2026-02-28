@@ -27,10 +27,8 @@ const ChatbotWidget = () => {
   const messagesEndRef = useRef(null);
   const audioAnimationRef = useRef(null);
 
-  // Only show chatbot for faculty/admin
-  if (!hasFacultyAccess()) {
-    return null;
-  }
+  // Store access check result — do NOT use early return here (violates Rules of Hooks)
+  const canUseChatbot = hasFacultyAccess();
 
   // Auto-scroll to bottom
   const scrollToBottom = () => {
@@ -279,6 +277,9 @@ const ChatbotWidget = () => {
     voiceService.updateSettings(newSettings);
   };
 
+  // Don't render for non-faculty (checked after all hooks to comply with Rules of Hooks)
+  if (!canUseChatbot) return null;
+
   return (
     <>
       {/* Floating Chat Button */}
@@ -288,7 +289,7 @@ const ChatbotWidget = () => {
         whileHover={{ scale: 1.1 }}
         whileTap={{ scale: 0.9 }}
         onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 w-16 h-16 rounded-full bg-gradient-to-br from-pink-500 to-orange-500 shadow-2xl flex items-center justify-center text-white text-2xl z-50 hover:shadow-pink-500/50 transition-shadow"
+        className="fixed bottom-6 right-6 w-16 h-16 rounded-full bg-gradient-to-br from-cyan-600 via-blue-600 to-purple-600 shadow-2xl flex items-center justify-center text-white text-2xl z-50 hover:shadow-cyan-500/50 transition-shadow"
       >
         {isOpen ? '✕' : '🤖'}
       </motion.button>

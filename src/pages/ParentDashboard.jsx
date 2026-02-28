@@ -8,6 +8,8 @@ import Navbar from '../components/layout/Navbar';
 import Card from '../components/ui/Card';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import ParentOnboarding from '../components/parent/ParentOnboarding';
+import NoiseTexture from '../components/ui/NoiseTexture';
+import FloatingOrbs from '../components/ui/FloatingOrbs';
 
 /**
  * Parent Dashboard
@@ -87,9 +89,12 @@ function ParentDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen bg-midnight relative">
+        <NoiseTexture />
+        <FloatingOrbs />
+        <div className="mesh-gradient-bg" />
         <Navbar />
-        <div className="flex items-center justify-center h-[80vh]">
+        <div className="relative z-10 flex items-center justify-center h-[80vh]">
           <LoadingSpinner size="lg" />
         </div>
       </div>
@@ -98,22 +103,30 @@ function ParentDashboard() {
 
   if (showOnboarding) {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen bg-midnight relative">
+        <NoiseTexture />
+        <FloatingOrbs />
+        <div className="mesh-gradient-bg" />
         <Navbar />
-        <ParentOnboarding
-          isOpen={showOnboarding}
-          userId={currentUser?.uid}
-          onComplete={handleOnboardingComplete}
-        />
+        <div className="relative z-10">
+          <ParentOnboarding
+            isOpen={showOnboarding}
+            userId={currentUser?.uid}
+            onComplete={handleOnboardingComplete}
+          />
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen bg-midnight relative">
+        <NoiseTexture />
+        <FloatingOrbs />
+        <div className="mesh-gradient-bg" />
         <Navbar />
-        <div className="max-w-4xl mx-auto p-6">
+        <div className="relative z-10 max-w-4xl mx-auto p-6 pt-24">
           <Card className="p-8 text-center">
             <div className="text-6xl mb-4">⚠️</div>
             <h2 className="text-xl font-semibold text-white mb-2">Unable to Load Data</h2>
@@ -133,10 +146,13 @@ function ParentDashboard() {
   const avgInternalMarks = getInternalMarks(student);
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-midnight relative">
+      <NoiseTexture />
+      <FloatingOrbs />
+      <div className="mesh-gradient-bg" />
       <Navbar />
       
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
+      <div className="relative z-10 max-w-7xl mx-auto p-6 pt-24 space-y-6">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}

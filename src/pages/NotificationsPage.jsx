@@ -7,6 +7,8 @@ import Card from '../components/ui/Card';
 import NotificationCard from '../components/notifications/NotificationCard';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
 import { useToast } from '../hooks/useToast';
+import NoiseTexture from '../components/ui/NoiseTexture';
+import FloatingOrbs from '../components/ui/FloatingOrbs';
 
 /**
  * Notifications Page for Faculty/Admin
@@ -78,9 +80,12 @@ const NotificationsPage = () => {
 
   if (!hasFacultyAccess()) {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen bg-midnight relative">
+        <NoiseTexture />
+        <FloatingOrbs />
+        <div className="mesh-gradient-bg" />
         <Navbar />
-        <div className="flex items-center justify-center h-[80vh]">
+        <div className="relative z-10 flex items-center justify-center h-[80vh]">
           <Card className="text-center p-8">
             <div className="text-6xl mb-4">🔒</div>
             <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
@@ -92,10 +97,13 @@ const NotificationsPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-midnight relative">
+      <NoiseTexture />
+      <FloatingOrbs />
+      <div className="mesh-gradient-bg" />
       <Navbar />
       
-      <div className="pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 pt-24 pb-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto">
           {/* Header */}
           <motion.div

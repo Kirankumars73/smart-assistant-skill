@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import {Bell, Crown, Menu, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { subscribeToNotificationCount } from '../../services/notificationService';
 
@@ -9,27 +10,35 @@ const Navbar = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
 
   // Subscribe to notification count for faculty/admin
   useEffect(() => {
     if (hasFacultyAccess()) {
-      console.log('Setting up notification listener...');
       const unsubscribe = subscribeToNotificationCount('pending', (count) => {
-        console.log('Notification count updated:', count);
         setNotificationCount(count);
       });
       return unsubscribe;
     }
   }, [hasFacultyAccess]);
 
+  // Handle scroll for floating effect
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const isActive = (path) => location.pathname === path;
 
   const navLinks = [
     { path: '/dashboard', label: 'Dashboard', roles: ['admin', 'faculty', 'student'] },
-    { path: '/admin', label: '👑 Admin Panel', roles: ['admin'] },
+    { path: '/admin', label: 'Admin Panel', icon: Crown, roles: ['admin'] },
     { path: '/timetable', label: 'Timetable', roles: ['admin', 'faculty', 'student'] },
-    { path: '/students', label: 'Students', roles: ['admin', 'faculty'] }, // Only admin & faculty
+    { path: '/students', label: 'Students', roles: ['admin', 'faculty'] },
     { path: '/questions', label: 'Questions', roles: ['admin', 'faculty', 'student'] },
   ];
 
@@ -48,13 +57,25 @@ const Navbar = () => {
   if (!currentUser) return null;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-40 bg-gray-900/80 backdrop-blur-lg border-b border-gray-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <motion.nav 
+      initial={{ y: -100 }}
+      animate={{ y: 0 }}
+      className={`
+        fixed top-4 left-1/2 -translate-x-1/2 z-50
+        max-w-7xl w-[calc(100%-2rem)] mx-auto
+        glass-morphic rounded-2xl
+        transition-all duration-300
+        ${scrolled ? 'shadow-glow-lg' : 'shadow-lg'}
+      `}
+    >
+      <div className="px-4 sm:px-6">
         <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link to="/dashboard" className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-500 to-pink-500" />
-            <span className="text-xl font-bold text-white hidden sm:block">
+          {/* Logo with Glow */}
+          <Link to="/dashboard" className="flex items-center space-x-3 group">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-glow-cyan to-glow-blue flex items-center justify-center shadow-glow transition-all group-hover:shadow-glow-lg group-hover:scale-110">
+              <span className="text-xl font-bold">✨</span>
+            </div>
+            <span className="text-xl font-display font-bold text-white hidden sm:block">
               Smart Academic
             </span>
           </Link>
@@ -65,34 +86,42 @@ const Navbar = () => {
               <Link
                 key={link.path}
                 to={link.path}
-                className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                  isActive(link.path)
-                    ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white'
-                    : 'text-gray-300 hover:text-white hover:bg-gray-800'
-                }`}
+                className={`
+                  relative px-4 py-2 rounded-xl font-medium transition-all duration-200
+                  link-underline magnetic-hover
+                  ${isActive(link.path)
+                    ? 'bg-gradient-to-r from-glow-cyan to-glow-blue text-white shadow-glow'
+                    : 'text-gray-300 hover:text-white hover:bg-white/5'
+                  }
+                `}
               >
-                {link.label}
+                <span className="flex items-center gap-2">
+                  {link.icon && <link.icon className="w-4 h-4" />}
+                  {link.label}
+                </span>
               </Link>
             ))}
           </div>
 
-          {/* User Profile */}
-          <div className="flex items-center space-x-4">
+          {/* User Profile Section */}
+          <div className="flex items-center space-x-3">
             {/* Role Badge */}
-            <div className="hidden sm:block px-3 py-1 rounded-full text-xs font-semibold bg-purple-500/20 text-purple-400 border border-purple-500/30">
+            <div className="hidden sm:block px-3 py-1.5 rounded-full text-xs font-bold bg-glow-purple/20 text-glow-purple-light border border-glow-purple/30">
               {userRole?.toUpperCase()}
             </div>
 
             {/* Notification Bell (Faculty/Admin only) */}
             {hasFacultyAccess() && (
-              <Link to="/notifications" className="relative p-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                </svg>
+              <Link to="/notifications" className="relative p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-all magnetic-hover">
+                <Bell className="w-6 h-6 icon-pulse" />
                 {notificationCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold animate-pulse">
+                  <motion.span 
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1 -right-1 bg-glow-pink text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold shadow-glow-purple animate-glow-pulse"
+                  >
                     {notificationCount}
-                  </span>
+                  </motion.span>
                 )}
               </Link>
             )}
@@ -103,23 +132,35 @@ const Navbar = () => {
                 onClick={() => setProfileMenuOpen(!profileMenuOpen)}
                 className="flex items-center space-x-2 focus:outline-none"
               >
-                <img
-                  src={currentUser.photoURL || 'https://via.placeholder.com/40'}
-                  alt="Profile"
-                  className="w-10 h-10 rounded-full border-2 border-pink-500"
-                />
+                {currentUser.photoURL ? (
+                  <img
+                    src={currentUser.photoURL}
+                    alt="Profile"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                    className="w-10 h-10 rounded-full border-2 border-glow-cyan shadow-glow-sm hover:shadow-glow transition-all"
+                  />
+                ) : null}
+                <div 
+                  className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 via-blue-500 to-purple-500 flex items-center justify-center text-white font-bold border-2 border-glow-cyan shadow-glow-sm hover:shadow-glow transition-all"
+                  style={{ display: currentUser.photoURL ? 'none' : 'flex' }}
+                >
+                  {(currentUser.displayName || currentUser.email || 'U')[0].toUpperCase()}
+                </div>
               </button>
 
               <AnimatePresence>
                 {profileMenuOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="absolute right-0 mt-2 w-64 bg-gray-800 rounded-lg shadow-xl border border-gray-700 overflow-hidden"
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 mt-2 w-64 glass-morphic rounded-xl shadow-glow border border-slate-700 overflow-hidden"
                   >
-                    <div className="px-4 py-3 border-b border-gray-700">
-                      <p className="text-sm font-medium text-white">
+                    <div className="px-4 py-3 border-b border-slate-700">
+                      <p className="text-sm font-semibold text-white">
                         {currentUser.displayName || 'User'}
                       </p>
                       <p className="text-xs text-gray-400 truncate">
@@ -128,7 +169,7 @@ const Navbar = () => {
                     </div>
                     <button
                       onClick={handleSignOut}
-                      className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-gray-700 transition-colors"
+                      className="w-full text-left px-4 py-3 text-sm text-red-400 hover:bg-white/5 transition-colors font-medium"
                     >
                       Sign Out
                     </button>
@@ -140,15 +181,9 @@ const Navbar = () => {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-gray-300 hover:bg-gray-800"
+              className="md:hidden p-2 rounded-xl text-gray-300 hover:bg-white/10 magnetic-hover"
             >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                {mobileMenuOpen ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                )}
-              </svg>
+              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
         </div>
@@ -160,27 +195,32 @@ const Navbar = () => {
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              className="md:hidden border-t border-gray-800 py-2"
+              className="md:hidden border-t border-slate-700 py-2 overflow-hidden"
             >
               {filteredLinks.map((link) => (
                 <Link
                   key={link.path}
                   to={link.path}
                   onClick={() => setMobileMenuOpen(false)}
-                  className={`block px-4 py-3 rounded-lg font-medium transition-colors ${
-                    isActive(link.path)
-                      ? 'bg-gradient-to-r from-orange-500 to-pink-500 text-white'
-                      : 'text-gray-300 hover:bg-gray-800'
-                  }`}
+                  className={`
+                    block px-4 py-3 rounded-xl font-medium transition-colors
+                    ${isActive(link.path)
+                      ? 'bg-gradient-to-r from-glow-cyan to-glow-blue text-white'
+                      : 'text-gray-300 hover:bg-white/5'
+                    }
+                  `}
                 >
-                  {link.label}
+                  <span className="flex items-center gap-2">
+                    {link.icon && <link.icon className="w-4 h-4" />}
+                    {link.label}
+                  </span>
                 </Link>
               ))}
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-    </nav>
+    </motion.nav>
   );
 };
 

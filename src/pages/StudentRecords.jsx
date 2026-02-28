@@ -20,6 +20,12 @@ import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { SkeletonCard } from '../components/ui/SkeletonLoader';
 import ProgressBar from '../components/ui/ProgressBar';
 import * as XLSX from 'xlsx';
+import NoiseTexture from '../components/ui/NoiseTexture';
+import FloatingOrbs from '../components/ui/FloatingOrbs';
+import {
+  Users, CheckCircle2, XCircle, AlertTriangle,
+  Plus, Upload, FileEdit, Search, BookUser
+} from 'lucide-react';
 
 const StudentRecords = () => {
   const { hasFacultyAccess, isStudent } = useAuth();
@@ -837,10 +843,13 @@ const StudentRecords = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-midnight text-white relative">
+      <NoiseTexture />
+      <FloatingOrbs />
+      <div className="mesh-gradient-bg" />
       <Navbar />
       
-      <div className="max-w-7xl mx-auto px-4 py-24">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-24">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -849,10 +858,13 @@ const StudentRecords = () => {
         >
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-5xl font-black bg-gradient-to-r from-orange-400 to-pink-400 bg-clip-text text-transparent mb-2">
-                Student Records
-              </h1>
-              <p className="text-xl text-gray-400">
+              <div className="flex items-center gap-3 mb-1">
+                <div className="p-2 rounded-xl bg-sky-500/10 border border-sky-500/20">
+                  <BookUser className="w-5 h-5 text-sky-400" />
+                </div>
+                <h1 className="text-3xl font-bold text-white tracking-tight">Student Records</h1>
+              </div>
+              <p className="text-sm text-gray-400 ml-14">
                 {hasFacultyAccess() ? 'Manage student data and track performance' : 'View student records and predictions'}
               </p>
             </div>
@@ -877,7 +889,7 @@ const StudentRecords = () => {
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  📤 Bulk Import
+                  Bulk Import
                 </GradientButton>
                 
                 <GradientButton
@@ -891,7 +903,7 @@ const StudentRecords = () => {
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
-                  📝 Update Marks
+                  Update Marks
                 </GradientButton>
               </div>
             )}
@@ -901,10 +913,10 @@ const StudentRecords = () => {
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
           {[
-            { label: 'Total Students', value: stats.total, icon: '👥', gradient: 'from-blue-500 to-cyan-500' },
-            { label: 'Predicted Pass', value: stats.pass, icon: '✅', gradient: 'from-green-500 to-emerald-500' },
-            { label: 'Predicted Fail', value: stats.fail, icon: '❌', gradient: 'from-red-500 to-pink-500' },
-            { label: 'At Risk', value: stats.atRisk, icon: '⚠️', gradient: 'from-yellow-500 to-orange-500' }
+            { label: 'Total Students', value: stats.total,   Icon: Users,          color: 'text-sky-400',     bg: 'bg-sky-500/10' },
+            { label: 'Predicted Pass', value: stats.pass,    Icon: CheckCircle2,   color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+            { label: 'Predicted Fail', value: stats.fail,    Icon: XCircle,        color: 'text-rose-400',    bg: 'bg-rose-500/10' },
+            { label: 'At Risk',        value: stats.atRisk,  Icon: AlertTriangle,  color: 'text-amber-400',   bg: 'bg-amber-500/10' },
           ].map((stat, index) => (
             <motion.div
               key={stat.label}
@@ -912,12 +924,12 @@ const StudentRecords = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
             >
-              <Card>
-                <div className={`text-3xl mb-2 inline-block p-2 rounded-lg bg-gradient-to-br ${stat.gradient}`}>
-                  {stat.icon}
+              <Card className="py-5">
+                <div className={`inline-flex p-4 rounded-xl ${stat.bg} mb-3`}>
+                  <stat.Icon className={`w-7 h-7 ${stat.color}`} />
                 </div>
-                <div className="text-2xl font-bold mb-1">{stat.value}</div>
-                <div className="text-gray-400 text-sm">{stat.label}</div>
+                <div className="text-2xl font-bold mb-0.5">{stat.value}</div>
+                <div className="text-gray-500 text-xs">{stat.label}</div>
               </Card>
             </motion.div>
           ))}
@@ -933,11 +945,9 @@ const StudentRecords = () => {
                 placeholder="Search by name, roll number, ID, or branch..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 pl-10 rounded-lg bg-white/5 border border-white/10 focus:border-pink-500 focus:outline-none"
+                className="w-full px-4 py-2 pl-9 rounded-lg bg-white/5 border border-white/10 focus:border-cyan-500/50 focus:outline-none text-sm"
               />
-              <svg className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
             </div>
 
             {/* Semester Filter */}
@@ -1064,7 +1074,7 @@ const StudentRecords = () => {
                           />
                         )}
                         
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-pink-500 flex items-center justify-center text-xl font-bold">
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 via-blue-500 to-purple-500 flex items-center justify-center text-base font-bold text-white flex-shrink-0">
                           {student.name?.[0]?.toUpperCase() || '?'}
                         </div>
                         <div>

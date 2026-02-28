@@ -6,6 +6,8 @@ import Navbar from '../components/layout/Navbar';
 import Card from '../components/ui/Card';
 import GradientButton from '../components/ui/GradientButton';
 import Input from '../components/ui/Input';
+import NoiseTexture from '../components/ui/NoiseTexture';
+import FloatingOrbs from '../components/ui/FloatingOrbs';
 import {
   generateNotes,
   generateDiagram,
@@ -250,10 +252,13 @@ ${generatedMaterials.notes.notes}
   };
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-midnight relative">
+      <NoiseTexture />
+      <FloatingOrbs />
+      <div className="mesh-gradient-bg" />
       <Navbar />
       
-      <div className="pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 pt-24 pb-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           {/* Header */}
           <motion.div

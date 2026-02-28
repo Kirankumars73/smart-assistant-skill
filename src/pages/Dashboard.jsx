@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Link, Navigate } from 'react-router-dom';
+import { Calendar, Users, FileText, Settings, BookOpen, Search, Clock, TrendingUp, Award } from 'lucide-react';
 import { collection, query, where, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
 import { useAuth } from '../contexts/AuthContext';
 import Card from '../components/ui/Card';
+import SpotlightCard from '../components/ui/SpotlightCard';
 import Navbar from '../components/layout/Navbar';
 import Input from '../components/ui/Input';
 import GradientButton from '../components/ui/GradientButton';
 import LoadingSpinner from '../components/ui/LoadingSpinner';
+import NoiseTexture from '../components/ui/NoiseTexture';
+import FloatingOrbs from '../components/ui/FloatingOrbs';
 import { getInternalMarks } from '../utils/subjectHelpers';
 import { getBacklogStatusColor, getBacklogStatusText, canRequestClearance } from '../utils/backlogHelpers';
 import { createClearanceNotification, hasPendingClearanceRequest } from '../services/notificationService';
@@ -57,7 +61,10 @@ const Dashboard = () => {
   // Show beautiful loading animation while role is being fetched
   if (currentUser && userRole === null) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
+      <div className="min-h-screen bg-midnight flex items-center justify-center relative">
+        <NoiseTexture />
+        <FloatingOrbs />
+        <div className="mesh-gradient-bg" />
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -185,22 +192,22 @@ const Dashboard = () => {
   };
 
   const adminServices = [
-    { title: 'Timetable Generator', description: 'Create automated schedules', icon: '📅', path: '/timetable', color: 'from-orange-500 to-pink-500' },
-    { title: 'Student Records', description: 'Manage student data & analytics', icon: '👥', path: '/students', color: 'from-purple-500 to-pink-500' },
-    { title: 'Question Prediction', description: 'Analyze exam papers', icon: '📝', path: '/questions', color: 'from-indigo-500 to-purple-500' },
-    { title: 'Admin Panel', description: 'Manage roles & permissions', icon: '⚙️', path: '/admin', color: 'from-pink-500 to-orange-500' },
+    { title: 'Timetable Generator', description: 'Create automated schedules', Icon: Calendar, path: '/timetable', color: 'from-glow-cyan to-glow-blue' },
+    { title: 'Student Records', description: 'Manage student data & analytics', Icon: Users, path: '/students', color: 'from-glow-purple to-glow-pink' },
+    { title: 'Question Prediction', description: 'Analyze exam papers', Icon: FileText, path: '/questions', color: 'from-glow-blue to-glow-purple' },
+    { title: 'Admin Panel', description: 'Manage roles & permissions', Icon: Settings, path: '/admin', color: 'from-glow-pink to-glow-cyan' },
   ];
 
   const facultyServices = [
-    { title: 'Timetable Generator', description: 'Create class schedules', icon: '📅', path: '/timetable', color: 'from-orange-500 to-pink-500' },
-    { title: 'Student Records', description: 'View & edit student data', icon: '👥', path: '/students', color: 'from-purple-500 to-pink-500' },
-    { title: 'Question Prediction', description: 'Upload & analyze papers', icon: '📝', path: '/questions', color: 'from-indigo-500 to-purple-500' },
+    { title: 'Timetable Generator', description: 'Create class schedules', Icon: Calendar, path: '/timetable', color: 'from-glow-cyan to-glow-blue' },
+    { title: 'Student Records', description: 'View & edit student data', Icon: Users, path: '/students', color: 'from-glow-purple to-glow-pink' },
+    { title: 'Question Prediction', description: 'Upload & analyze papers', Icon: FileText, path: '/questions', color: 'from-glow-blue to-glow-purple' },
   ];
 
   const studentServices = [
-    { title: 'AI Study Materials', description: 'Generate notes, diagrams \u0026 practice questions', icon: '📚', path: '/study-materials', color: 'from-pink-500 to-orange-500' },
-    { title: 'Predicted Questions', description: 'Study smart with AI predictions', icon: '📝', path: '/questions', color: 'from-indigo-500 to-purple-500' },
-    { title: 'My Timetable', description: 'View class schedule', icon: '📅', path: '/timetable', color: 'from-orange-500 to-pink-500' },
+    { title: 'AI Study Materials', description: 'Generate notes, diagrams & practice questions', Icon: BookOpen, path: '/study-materials', color: 'from-glow-pink to-glow-cyan' },
+    { title: 'Predicted Questions', description: 'Study smart with AI predictions', Icon: TrendingUp, path: '/questions', color: 'from-glow-blue to-glow-purple' },
+    { title: 'My Timetable', description: 'View class schedule', Icon: Calendar, path: '/timetable', color: 'from-glow-cyan to-glow-blue' },
   ];
 
   const getServices = () => {
@@ -221,7 +228,10 @@ const Dashboard = () => {
   // Render unregistered student search interface
   if (userRole === 'student' && !loading && !isRegisteredStudent) {
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen bg-midnight">
+        <NoiseTexture />
+        <FloatingOrbs />
+        <div className="mesh-gradient-bg" />
         <Navbar />
         
         <div className="pt-24 pb-12 px-4 sm:px-6 lg:px-8">
@@ -246,12 +256,12 @@ const Dashboard = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2, duration: 0.6 }}
             >
-              <Card>
+              <Card variant="glow">
                 <div className="text-center mb-6">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-pink-500 flex items-center justify-center text-4xl mx-auto mb-4">
-                    🔍
+                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-glow-cyan to-glow-blue flex items-center justify-center mx-auto mb-4 shadow-glow">
+                    <Search className="w-10 h-10 text-white" />
                   </div>
-                  <h2 className="text-2xl font-bold mb-2">Find Your Student Record</h2>
+                  <h2 className="text-2xl font-display font-bold mb-2">Find Your Student Record</h2>
                   <p className="text-gray-400">
                     Enter your Student ID (starting with PTA) to view your academic information
                   </p>
@@ -419,19 +429,19 @@ const Dashboard = () => {
                     transition={{ delay: 0.5 + index * 0.1, duration: 0.5 }}
                   >
                     <Link to={service.path}>
-                      <Card hover gradient>
-                        <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${service.color} flex items-center justify-center text-3xl mb-4`}>
-                          {service.icon}
+                      <SpotlightCard className="p-6">
+                        <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${service.color} flex items-center justify-center mb-4 shadow-glow`}>
+                          <service.Icon className="w-9 h-9 text-white" strokeWidth={2} />
                         </div>
-                        <h3 className="text-xl font-bold mb-2">{service.title}</h3>
+                        <h3 className="text-xl font-display font-bold mb-2">{service.title}</h3>
                         <p className="text-gray-400 text-sm">{service.description}</p>
-                        <div className="mt-4 flex items-center text-pink-500 font-medium">
+                        <div className="mt-4 flex items-center text-glow-cyan font-medium">
                           Open
                           <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                           </svg>
                         </div>
-                      </Card>
+                      </SpotlightCard>
                     </Link>
                   </motion.div>
                 ))}
@@ -448,10 +458,13 @@ const Dashboard = () => {
     const prediction = predictPassFail(studentData);
     
     return (
-      <div className="min-h-screen bg-black">
+      <div className="min-h-screen bg-midnight relative">
+        <NoiseTexture />
+        <FloatingOrbs />
+        <div className="mesh-gradient-bg" />
         <Navbar />
         
-        <div className="pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+        <div className="relative z-10 pt-24 pb-12 px-4 sm:px-6 lg:px-8">
           <div className="max-w-7xl mx-auto">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -571,19 +584,19 @@ const Dashboard = () => {
                   transition={{ delay: 0.5 + index * 0.1, duration: 0.5 }}
                 >
                   <Link to={service.path}>
-                    <Card hover gradient>
-                      <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${service.color} flex items-center justify-center text-3xl mb-4`}>
-                        {service.icon}
+                    <SpotlightCard className="p-6">
+                      <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${service.color} flex items-center justify-center mb-4 shadow-glow`}>
+                        <service.Icon className="w-9 h-9 text-white" strokeWidth={2} />
                       </div>
-                      <h3 className="text-xl font-bold mb-2">{service.title}</h3>
+                      <h3 className="text-xl font-display font-bold mb-2">{service.title}</h3>
                       <p className="text-gray-400 text-sm">{service.description}</p>
-                      <div className="mt-4 flex items-center text-pink-500 font-medium">
+                      <div className="mt-4 flex items-center text-glow-cyan font-medium">
                         Open
                         <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
-                    </Card>
+                    </SpotlightCard>
                   </Link>
                 </motion.div>
               ))}
@@ -596,7 +609,10 @@ const Dashboard = () => {
 
   // Default dashboard for faculty/admin
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-midnight">
+      <NoiseTexture />
+      <FloatingOrbs />
+      <div className="mesh-gradient-bg" />
       <Navbar />
       
       <div className="pt-24 pb-12 px-4 sm:px-6 lg:px-8">
@@ -632,19 +648,19 @@ const Dashboard = () => {
                   transition={{ delay: 0.3 + index * 0.1, duration: 0.5 }}
                 >
                   <Link to={service.path}>
-                    <Card hover gradient>
-                      <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${service.color} flex items-center justify-center text-3xl mb-4`}>
-                        {service.icon}
+                    <SpotlightCard className="p-6">
+                      <div className={`w-16 h-16 rounded-xl bg-gradient-to-br ${service.color} flex items-center justify-center mb-4 shadow-glow`}>
+                        <service.Icon className="w-9 h-9 text-white" strokeWidth={2} />
                       </div>
-                      <h3 className="text-xl font-bold mb-2">{service.title}</h3>
+                      <h3 className="text-xl font-display font-bold mb-2">{service.title}</h3>
                       <p className="text-gray-400 text-sm">{service.description}</p>
-                      <div className="mt-4 flex items-center text-pink-500 font-medium">
+                      <div className="mt-4 flex items-center text-glow-cyan font-medium">
                         Open
                         <svg className="w-4 h-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
-                    </Card>
+                    </SpotlightCard>
                   </Link>
                 </motion.div>
               ))}

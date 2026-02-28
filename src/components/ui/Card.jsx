@@ -1,32 +1,39 @@
 import React from 'react';
+import { motion } from 'framer-motion';
 
 const Card = ({ 
   children, 
   className = '',
   hover = true,
-  gradient = false,
+  variant = 'default', // 'default' | 'glass' | 'glow'
   onClick,
   ...props 
 }) => {
-  // Clean, muted card styling
-  const baseClasses = "bg-gray-900/50 border border-gray-800/50 rounded-lg p-6 backdrop-blur-sm";
+  // Midnight Oil theme - Rich dark base with bioluminescent accents
+  const baseClasses = "bg-midnight-50/40 border rounded-xl p-6 backdrop-blur-md noise-texture";
+  
+  const variantClasses = {
+    default: "border-slate-700/50",
+    glass: "border-slate-600/50 glass-morphic bg-midnight-50/20",
+    glow: "border-glow-cyan/40 shadow-glow bg-midnight-50/30",
+  };
   
   const hoverClasses = hover 
-    ? "transition-all duration-200 hover:border-gray-700 cursor-pointer hover:-translate-y-1 hover:bg-gray-900/70"
-    : "";
-  
-  const gradientClasses = gradient 
-    ? "bg-gradient-to-br from-gray-900/60 to-gray-800/60" 
+    ? "transition-all duration-300 hover:border-glow-cyan/50 cursor-pointer hover:-translate-y-2 hover:shadow-glow card-lift"
     : "";
 
+  const Component = hover ? motion.div : 'div';
+
   return (
-    <div
+    <Component
       onClick={onClick}
-      className={`${baseClasses} ${hoverClasses} ${gradientClasses} ${className}`}
+      className={`${baseClasses} ${variantClasses[variant]} ${hoverClasses} ${className}`}
+      whileHover={hover ? { scale: 1.02 } : {}}
+      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
       {...props}
     >
       {children}
-    </div>
+    </Component>
   );
 };
 

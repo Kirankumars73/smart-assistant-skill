@@ -21,6 +21,8 @@ import {
   validateConfiguration 
 } from '../utils/timetableHelpers';
 import { exportFacultyTimetablesToPDF, exportClassTimetablesToPDF } from '../utils/pdfExportHelper';
+import NoiseTexture from '../components/ui/NoiseTexture';
+import FloatingOrbs from '../components/ui/FloatingOrbs';
 
 const TimetableGenerator = () => {
   const { currentUser, userRole } = useAuth();
@@ -1848,10 +1850,13 @@ const TimetableGenerator = () => {
   // Students have read-only access to view class timetables
   
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-midnight relative">
+      <NoiseTexture />
+      <FloatingOrbs />
+      <div className="mesh-gradient-bg" />
       <Navbar />
       
-      <div className="pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 pt-24 pb-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}

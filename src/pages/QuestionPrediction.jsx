@@ -15,6 +15,8 @@ import { exportQuestionPredictionToPDF } from '../utils/questionPdfHelper';
 import MLInsights from '../components/ui/MLInsights';  // Phase 2: ML insights display
 import * as XLSX from 'xlsx';
 import { parseSyllabus } from '../services/syllabusParser';  // Auto-parse syllabus format
+import NoiseTexture from '../components/ui/NoiseTexture';
+import FloatingOrbs from '../components/ui/FloatingOrbs';
 
 const QuestionPrediction = () => {
   const { userRole, hasFacultyAccess, currentUser } = useAuth();
@@ -335,10 +337,13 @@ const handleDeletePrediction = async (predictionId) => {
 };
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-midnight relative">
+      <NoiseTexture />
+      <FloatingOrbs />
+      <div className="mesh-gradient-bg" />
       <Navbar />
       
-      <div className="pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 pt-24 pb-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -581,38 +586,38 @@ const handleDeletePrediction = async (predictionId) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5, duration: 0.6 }}
-                className="mb-12"
+                className="mb-8"
               >
-                <Card gradient>
-                  <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                    <span className="text-gradient">Part A</span> 
-                    <span className="text-gray-400 text-base">(Compulsory 3-mark questions)</span>
+                <Card hover={false}>
+                  <h3 className="text-xl font-semibold mb-5 flex items-center gap-2 text-white border-b border-slate-700/50 pb-4">
+                    Part A
+                    <span className="text-gray-400 text-sm font-normal">(Compulsory 3-mark questions)</span>
                   </h3>
                   
                   <div className="space-y-6">
                     {filteredPredictions?.partA && Object.entries(filteredPredictions.partA).map(([module, questions]) => (
-                      <div key={module} className="border-l-4 border-pink-500 pl-6">
-                        <h4 className="text-xl font-bold mb-4 text-pink-400">{module}</h4>
-                        <div className="space-y-4">
+                      <div key={module} className="border-l-2 border-slate-600 pl-5">
+                        <h4 className="text-base font-semibold mb-4 text-slate-300">{module}</h4>
+                        <div className="space-y-3">
                           {questions.map((q, idx) => (
-                            <div key={idx} className="bg-gray-800/50 rounded-lg p-5 hover:bg-gray-800 transition-colors">
-                              <div className="flex items-start gap-4">
-                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-pink-500/20 flex items-center justify-center">
-                                  <span className="text-pink-400 font-bold text-sm">{idx + 1}</span>
+                            <div key={idx} className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/30">
+                              <div className="flex items-start gap-3">
+                                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-slate-700/60 flex items-center justify-center mt-0.5">
+                                  <span className="text-slate-300 font-semibold text-xs">{idx + 1}</span>
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-white font-medium mb-3 leading-relaxed break-words whitespace-normal">
+                                  <p className="text-slate-100 font-medium mb-2.5 leading-relaxed break-words whitespace-normal text-sm">
                                     {q.question}
                                   </p>
                                   
                                   {/* Syllabus Topics */}
                                   {q.syllabus_topics && q.syllabus_topics.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 mb-3">
-                                      <span className="text-xs text-purple-400 font-semibold">📚 Focus Areas:</span>
+                                    <div className="flex flex-wrap gap-1.5 mb-2.5">
+                                      <span className="text-xs text-slate-400 font-medium">Focus:</span>
                                       {q.syllabus_topics.map((topic, topicIdx) => (
                                         <span
                                           key={topicIdx}
-                                          className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-full text-xs font-medium border border-purple-500/30"
+                                          className="px-2 py-0.5 bg-slate-700/50 text-slate-300 rounded text-xs border border-slate-600/40"
                                         >
                                           {topic}
                                         </span>
@@ -620,30 +625,21 @@ const handleDeletePrediction = async (predictionId) => {
                                     </div>
                                   )}
                                   
-                                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
-                                    <span className="flex items-center gap-1">
-                                      <span className="text-pink-400">📊</span>
-                                      Probability: {Math.round(q.probability * 100)}%
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <span className="text-orange-400">🔄</span>
-                                      Frequency: {q.frequency}x
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <span className="text-blue-400">📝</span>
-                                      {q.marks} marks
-                                    </span>
+                                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                                    <span>Prob: {Math.round(q.probability * 100)}%</span>
+                                    <span>Freq: {q.frequency}x</span>
+                                    <span>{q.marks} marks</span>
                                   </div>
                                   
                                   {/* Phase 2: ML Insights */}
                                   {showMLInsights && <MLInsights question={q} />}
                                 </div>
-                                <div className={`flex-shrink-0 px-3 py-1 rounded-full text-xs font-semibold ${
-                                  q.probability > 0.7 ? 'bg-red-500/20 text-red-500 border border-red-500' :
-                                  q.probability > 0.5 ? 'bg-orange-500/20 text-orange-500 border border-orange-500' :
-                                  'bg-yellow-500/20 text-yellow-500 border border-yellow-500'
+                                <div className={`flex-shrink-0 px-2.5 py-0.5 rounded text-xs font-medium ${
+                                  q.probability > 0.7 ? 'bg-slate-700 text-red-300' :
+                                  q.probability > 0.5 ? 'bg-slate-700 text-amber-300' :
+                                  'bg-slate-700 text-slate-400'
                                 }`}>
-                                  {q.probability > 0.7 ? 'High' : q.probability > 0.5 ? 'Medium' : 'Low'}
+                                  {q.probability > 0.7 ? 'High' : q.probability > 0.5 ? 'Med' : 'Low'}
                                 </div>
                               </div>
                             </div>
@@ -660,49 +656,49 @@ const handleDeletePrediction = async (predictionId) => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6, duration: 0.6 }}
-                className="mb-12"
+                className="mb-8"
               >
-                <Card gradient>
-                  <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                    <span className="text-gradient">Part B</span>
-                    <span className="text-gray-400 text-base">(14 marks - Answer any TWO questions)</span>
+                <Card hover={false}>
+                  <h3 className="text-xl font-semibold mb-5 flex items-center gap-2 text-white border-b border-slate-700/50 pb-4">
+                    Part B
+                    <span className="text-gray-400 text-sm font-normal">(14 marks — Answer any TWO questions)</span>
                   </h3>
                   
                   <div className="space-y-6">
                     {filteredPredictions?.partB && Object.entries(filteredPredictions.partB).map(([module, data]) => (
-                      <div key={module} className="border-l-4 border-orange-500 pl-6">
-                        <h4 className="text-xl font-bold mb-2 text-orange-400">
+                      <div key={module} className="border-l-2 border-slate-600 pl-5">
+                        <h4 className="text-base font-semibold mb-3 text-slate-300">
                           {module}
                         </h4>
                         
                         {/* Set A */}
-                        <div className="mb-6">
-                          <p className="text-sm text-gray-400 mb-3 flex items-center gap-2">
-                            <span className="bg-orange-500/20 text-orange-300 px-2 py-1 rounded font-bold">SET A</span>
-                            Total: {data.setA?.totalMarks || 0} marks
+                        <div className="mb-5">
+                          <p className="text-xs text-slate-500 mb-3 flex items-center gap-2">
+                            <span className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-xs font-semibold">SET A</span>
+                            {data.setA?.totalMarks || 0} marks total
                           </p>
-                          <div className="space-y-4">
+                          <div className="space-y-3">
                             {data.setA?.questions && data.setA.questions.map((q, idx) => (
-                              <div key={idx} className="bg-gray-800/50 rounded-lg p-5 hover:bg-gray-800 transition-colors">
-                                <div className="flex items-start gap-4">
+                              <div key={idx} className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/30">
+                                <div className="flex items-start gap-3">
                                   <div className="flex-shrink-0">
-                                    <span className="inline-block bg-orange-500 text-white px-3 py-1 rounded-lg text-sm font-bold">
+                                    <span className="inline-block bg-slate-700 text-slate-200 px-2.5 py-0.5 rounded text-xs font-semibold">
                                       {q.marks}m
                                     </span>
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-white font-medium mb-3 leading-relaxed break-words whitespace-normal">
+                                    <p className="text-slate-100 font-medium mb-2.5 leading-relaxed break-words whitespace-normal text-sm">
                                       {q.question}
                                     </p>
                                     
                                     {/* Syllabus Topics */}
                                     {q.syllabus_topics && q.syllabus_topics.length > 0 && (
-                                      <div className="flex flex-wrap gap-2 mb-3">
-                                        <span className="text-xs text-purple-400 font-semibold">📚 Focus Areas:</span>
+                                      <div className="flex flex-wrap gap-1.5 mb-2.5">
+                                        <span className="text-xs text-slate-400 font-medium">Focus:</span>
                                         {q.syllabus_topics.map((topic, topicIdx) => (
                                           <span
                                             key={topicIdx}
-                                            className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-full text-xs font-medium border border-purple-500/30"
+                                            className="px-2 py-0.5 bg-slate-700/50 text-slate-300 rounded text-xs border border-slate-600/40"
                                           >
                                             {topic}
                                           </span>
@@ -710,15 +706,9 @@ const handleDeletePrediction = async (predictionId) => {
                                       </div>
                                     )}
                                     
-                                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
-                                      <span className="flex items-center gap-1">
-                                        <span className="text-pink-400">📊</span>
-                                        Probability: {Math.round(q.probability * 100)}%
-                                      </span>
-                                      <span className="flex items-center gap-1">
-                                        <span className="text-orange-400">🔄</span>
-                                        Frequency: {q.frequency}x
-                                      </span>
+                                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                                      <span>Prob: {Math.round(q.probability * 100)}%</span>
+                                      <span>Freq: {q.frequency}x</span>
                                     </div>
                                     
                                     {/* Phase 2: ML Insights */}
@@ -731,40 +721,40 @@ const handleDeletePrediction = async (predictionId) => {
                         </div>
 
                         {/* OR Divider */}
-                        <div className="flex items-center gap-4 my-6">
-                          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-orange-500/50 to-transparent"></div>
-                          <span className="text-orange-400 font-bold text-lg">OR</span>
-                          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-orange-500/50 to-transparent"></div>
+                        <div className="flex items-center gap-3 my-4">
+                          <div className="flex-1 h-px bg-slate-700/60"></div>
+                          <span className="text-slate-500 font-semibold text-xs tracking-widest">OR</span>
+                          <div className="flex-1 h-px bg-slate-700/60"></div>
                         </div>
 
                         {/* Set B */}
                         <div>
-                          <p className="text-sm text-gray-400 mb-3 flex items-center gap-2">
-                            <span className="bg-blue-500/20 text-blue-300 px-2 py-1 rounded font-bold">SET B</span>
-                            Total: {data.setB?.totalMarks || 0} marks
+                          <p className="text-xs text-slate-500 mb-3 flex items-center gap-2">
+                            <span className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-xs font-semibold">SET B</span>
+                            {data.setB?.totalMarks || 0} marks total
                           </p>
-                          <div className="space-y-4">
+                          <div className="space-y-3">
                             {data.setB?.questions && data.setB.questions.map((q, idx) => (
-                              <div key={idx} className="bg-gray-800/50 rounded-lg p-5 hover:bg-gray-800 transition-colors">
-                                <div className="flex items-start gap-4">
+                              <div key={idx} className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/30">
+                                <div className="flex items-start gap-3">
                                   <div className="flex-shrink-0">
-                                    <span className="inline-block bg-blue-500 text-white px-3 py-1 rounded-lg text-sm font-bold">
+                                    <span className="inline-block bg-slate-700 text-slate-200 px-2.5 py-0.5 rounded text-xs font-semibold">
                                       {q.marks}m
                                     </span>
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <p className="text-white font-medium mb-3 leading-relaxed break-words whitespace-normal">
+                                    <p className="text-slate-100 font-medium mb-2.5 leading-relaxed break-words whitespace-normal text-sm">
                                       {q.question}
                                     </p>
                                     
                                     {/* Syllabus Topics */}
                                     {q.syllabus_topics && q.syllabus_topics.length > 0 && (
-                                      <div className="flex flex-wrap gap-2 mb-3">
-                                        <span className="text-xs text-purple-400 font-semibold">📚 Focus Areas:</span>
+                                      <div className="flex flex-wrap gap-1.5 mb-2.5">
+                                        <span className="text-xs text-slate-400 font-medium">Focus:</span>
                                         {q.syllabus_topics.map((topic, topicIdx) => (
                                           <span
                                             key={topicIdx}
-                                            className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded-full text-xs font-medium border border-purple-500/30"
+                                            className="px-2 py-0.5 bg-slate-700/50 text-slate-300 rounded text-xs border border-slate-600/40"
                                           >
                                             {topic}
                                           </span>
@@ -772,15 +762,9 @@ const handleDeletePrediction = async (predictionId) => {
                                       </div>
                                     )}
                                     
-                                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-400">
-                                      <span className="flex items-center gap-1">
-                                        <span className="text-pink-400">📊</span>
-                                        Probability: {Math.round(q.probability * 100)}%
-                                      </span>
-                                      <span className="flex items-center gap-1">
-                                        <span className="text-orange-400">🔄</span>
-                                        Frequency: {q.frequency}x
-                                      </span>
+                                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                                      <span>Prob: {Math.round(q.probability * 100)}%</span>
+                                      <span>Freq: {q.frequency}x</span>
                                     </div>
                                     
                                     {/* Phase 2: ML Insights */}
@@ -792,7 +776,7 @@ const handleDeletePrediction = async (predictionId) => {
                           </div>
                         </div>
 
-                        <p className="mt-6 text-gray-500 text-sm italic">Choose either SET A or SET B (both sum to 14 marks)</p>
+                        <p className="mt-4 text-slate-600 text-xs italic">Choose either SET A or SET B (both sum to 14 marks)</p>
                       </div>
                     ))}
                   </div>
