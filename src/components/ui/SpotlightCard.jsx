@@ -14,13 +14,8 @@ const SpotlightCard = ({ children, className = '', spotlightColor = 'rgba(6, 182
     });
   };
 
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-  };
-
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-  };
+  const handleMouseEnter = () => setIsHovered(true);
+  const handleMouseLeave = () => setIsHovered(false);
 
   return (
     <div
@@ -37,7 +32,7 @@ const SpotlightCard = ({ children, className = '', spotlightColor = 'rgba(6, 182
       `}
       {...props}
     >
-      {/* Brighter Spotlight Effect */}
+      {/* Spotlight Effect */}
       <div
         className="absolute inset-0 transition-opacity duration-300 pointer-events-none"
         style={{
@@ -48,7 +43,7 @@ const SpotlightCard = ({ children, className = '', spotlightColor = 'rgba(6, 182
         }}
       />
 
-      {/* Border glow - only visible on hover */}
+      {/* Border glow */}
       {isHovered && (
         <div
           className="absolute pointer-events-none transition-opacity duration-300"
