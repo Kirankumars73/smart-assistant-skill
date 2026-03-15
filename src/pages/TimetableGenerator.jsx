@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { collection, addDoc, getDocs, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -12,14 +12,15 @@ import Input from '../components/ui/Input';
 import Modal from '../components/ui/Modal';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import * as TimetableService from '../services/timetableService';
-import { 
-  exportToExcel, 
-  exportToText, 
-  downloadTextFile, 
+import {
+  exportToExcel,
+  exportToText,
+  downloadTextFile,
   exportToJSON,
   detectConflicts,
-  validateConfiguration 
+  validateConfiguration
 } from '../utils/timetableHelpers';
+import { parseExcelTimetable, downloadTemplate } from '../utils/excelTimetableImporter';
 import { exportFacultyTimetablesToPDF, exportClassTimetablesToPDF } from '../utils/pdfExportHelper';
 import NoiseTexture from '../components/ui/NoiseTexture';
 import FloatingOrbs from '../components/ui/FloatingOrbs';
@@ -122,6 +123,13 @@ const TimetableGenerator = () => {
     conflicts: 0,
     isRunning: false
   });
+
+  // Import modal state
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState(null);
+  const [importErrors, setImportErrors] = useState([]);
+  const [importLoading, setImportLoading] = useState(false);
+  const fileInputRef = useRef(null);
   
   // Load saved timetables on mount
   useEffect(() => {
@@ -292,7 +300,79 @@ const TimetableGenerator = () => {
   const handleConfigChange = (field, value) => {
     setConfig(prev => ({ ...prev, [field]: value }));
   };
-  
+
+  // Excel Import handlers
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const validExtensions = ['.xlsx', '.xls', '.csv'];
+    const fileName = file.name.toLowerCase();
+    const isValid = validExtensions.some(ext => fileName.endsWith(ext));
+
+    if (!isValid) {
+      showError('Please select a valid Excel file (.xlsx, .xls, or .csv)');
+      return;
+    }
+
+    setImportLoading(true);
+    setImportErrors([]);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = parseExcelTimetable(arrayBuffer);
+
+      if (result.success) {
+        setImportPreview(result.data);
+        setImportErrors([]);
+      } else {
+        setImportPreview(null);
+        setImportErrors(result.errors);
+      }
+    } catch (err) {
+      console.error('Import error:', err);
+      setImportErrors(['Failed to parse Excel file. Please ensure it follows the template format.']);
+      setImportPreview(null);
+    } finally {
+      setImportLoading(false);
+    }
+  };
+
+  const handleConfirmImport = () => {
+    if (!importPreview) return;
+
+    // Set all imported data to state
+    setConfig(importPreview.config);
+    setFaculties(importPreview.faculties);
+    setClasses(importPreview.classes);
+    setSubjects(importPreview.subjects);
+    setAssignments(importPreview.assignments);
+
+    showSuccess(`Successfully imported ${importPreview.faculties.length} faculty, ${importPreview.classes.length} classes, and ${importPreview.assignments.length} assignments`);
+
+    // Close modal and reset
+    setImportModalOpen(false);
+    setImportPreview(null);
+    setImportErrors([]);
+
+    // Reset to step 1
+    setCurrentStep(1);
+  };
+
+  const handleCloseImportModal = () => {
+    setImportModalOpen(false);
+    setImportPreview(null);
+    setImportErrors([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDownloadTemplate = () => {
+    downloadTemplate();
+    showSuccess('Template downloaded successfully');
+  };
+
   // Step 2: Faculty Management
   const addFaculty = () => {
     if (newFaculty.trim()) {
@@ -915,7 +995,25 @@ const TimetableGenerator = () => {
     <div className="space-y-6">
       <h2 className="text-2xl font-bold mb-6">Step 1: Timetable Grid Configuration</h2>
       <p className="text-gray-400 mb-4">Configure the basic timetable grid structure.</p>
-      
+
+      {/* Import Section */}
+      <div className="bg-gray-800/50 rounded-lg p-4 mb-6">
+        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Import from Excel</h3>
+            <p className="text-gray-400 text-sm">Upload a pre-filled Excel file with all timetable data</p>
+          </div>
+          <div className="flex gap-2">
+            <GradientButton onClick={handleDownloadTemplate} variant="secondary" className="text-sm">
+              Download Template
+            </GradientButton>
+            <GradientButton onClick={() => setImportModalOpen(true)} className="text-sm">
+              Import Excel
+            </GradientButton>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Input
           label="Days (Rows) *"
@@ -925,7 +1023,7 @@ const TimetableGenerator = () => {
           value={config.rows}
           onChange={(e) => handleConfigChange('rows', parseInt(e.target.value) || 5)}
         />
-        
+
         <Input
           label="Periods per Day (Columns) *"
           type="number"
@@ -2098,6 +2196,96 @@ const TimetableGenerator = () => {
         confirmText={confirmConfig.confirmText}
         type={confirmConfig.type}
       />
+
+      {/* Excel Import Modal */}
+      <Modal
+        isOpen={importModalOpen}
+        onClose={handleCloseImportModal}
+        title="Import Timetable from Excel"
+      >
+        <div className="space-y-4">
+          {/* File Input */}
+          <div className="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleImportFile}
+              className="hidden"
+              id="excel-import"
+            />
+            <label htmlFor="excel-import" className="cursor-pointer">
+              <div className="space-y-2">
+                <div className="text-4xl">📄</div>
+                <p className="text-white font-medium">
+                  {importLoading ? 'Parsing file...' : 'Click to select Excel file'}
+                </p>
+                <p className="text-gray-400 text-sm">.xlsx, .xls, or .csv</p>
+              </div>
+            </label>
+          </div>
+
+          {/* Download Template Link */}
+          <div className="text-center">
+            <button
+              onClick={handleDownloadTemplate}
+              className="text-blue-400 hover:text-blue-300 text-sm underline"
+            >
+              Download template to see expected format
+            </button>
+          </div>
+
+          {/* Errors */}
+          {importErrors.length > 0 && (
+            <div className="bg-red-500/20 border border-red-500 rounded-lg p-4">
+              <h4 className="text-red-400 font-semibold mb-2">Import Errors:</h4>
+              <ul className="text-red-300 text-sm space-y-1 max-h-40 overflow-y-auto">
+                {importErrors.map((error, index) => (
+                  <li key={index}>• {error}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Preview */}
+          {importPreview && (
+            <div className="bg-green-500/20 border border-green-500 rounded-lg p-4 space-y-3">
+              <h4 className="text-green-400 font-semibold">Preview - Ready to Import:</h4>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div className="text-gray-300">
+                  <span className="text-gray-500">Config:</span> {importPreview.config.rows} days × {importPreview.config.cols} periods
+                </div>
+                <div className="text-gray-300">
+                  <span className="text-gray-500">Faculty:</span> {importPreview.faculties.length}
+                </div>
+                <div className="text-gray-300">
+                  <span className="text-gray-500">Classes:</span> {importPreview.classes.length}
+                </div>
+                <div className="text-gray-300">
+                  <span className="text-gray-500">Assignments:</span> {importPreview.assignments.length}
+                </div>
+              </div>
+              <div className="text-xs text-gray-400 mt-2">
+                Classes: {importPreview.classes.map(c => c.name).join(', ')}
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex gap-3 justify-end pt-2">
+            <GradientButton onClick={handleCloseImportModal} variant="secondary">
+              Cancel
+            </GradientButton>
+            <GradientButton
+              onClick={handleConfirmImport}
+              disabled={!importPreview}
+              className={!importPreview ? 'opacity-50 cursor-not-allowed' : ''}
+            >
+              Import Data
+            </GradientButton>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
