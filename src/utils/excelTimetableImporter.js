@@ -2,12 +2,14 @@ import * as XLSX from 'xlsx';
 
 /**
  * Parse an Excel file and extract timetable data from a SINGLE sheet
- * Expected columns: Days, Periods, Faculty, Class, Subject, Type, WeeklyLimit
+ * Supports multiple faculty per subject (comma-separated)
  *
  * Single sheet format - all data in one place:
  * | Days | Periods | Faculty | Class | Subject | Type | WeeklyLimit |
  * | 5    | 6       | Dr. Smith | BCS-1 | Mathematics | theory | 4           |
- * | 5    | 6       | Dr. Smith | BCS-1 | C Programming | lab | 2          |
+ * | 5    | 6       | Dr. Smith, Prof. Jones | BCS-1 | Physics | theory | 4 |
+ *
+ * For multiple faculty, hours are split equally between them
  */
 export const parseExcelTimetable = (fileData) => {
   const workbook = XLSX.read(fileData, { type: 'array' });
@@ -42,7 +44,10 @@ export const parseExcelTimetable = (fileData) => {
   const classMap = new Map(); // className -> {name, department, semester, scheme, academicYear, subjects: []}
   const assignments = [];
 
-  // Process each row
+  // Group rows by class+subject to handle multi-faculty
+  const subjectGroupMap = new Map(); // key: className|subjectName -> {type, weeklyLimit, faculties: []}
+
+  // First pass: group by class+subject and collect all faculty
   for (let i = 0; i < data.length; i++) {
     const row = data[i];
 
@@ -59,10 +64,6 @@ export const parseExcelTimetable = (fileData) => {
     }
 
     // Validate required fields
-    if (!facultyName || !facultyName.trim()) {
-      errors.push(`Row ${i + 2}: Missing Faculty name`);
-      continue;
-    }
     if (!className || !className.trim()) {
       errors.push(`Row ${i + 2}: Missing Class name`);
       continue;
@@ -72,21 +73,81 @@ export const parseExcelTimetable = (fileData) => {
       continue;
     }
 
-    const trimmedFaculty = facultyName.trim();
     const trimmedClass = className.trim();
     const trimmedSubject = subjectName.trim();
+    const groupKey = `${trimmedClass}|${trimmedSubject}`;
 
-    // Add faculty
-    facultySet.add(trimmedFaculty);
+    // Initialize group if not exists
+    if (!subjectGroupMap.has(groupKey)) {
+      // Validate type
+      if (type !== 'theory' && type !== 'lab') {
+        errors.push(`Row ${i + 2}: Type "${type}" must be "theory" or "lab"`);
+        continue;
+      }
 
-    // Add class (if not already exists)
+      subjectGroupMap.set(groupKey, {
+        className: trimmedClass,
+        subjectName: trimmedSubject,
+        type,
+        weeklyLimit,
+        faculties: []
+      });
+    }
+
+    const group = subjectGroupMap.get(groupKey);
+
+    // Handle multiple faculty (comma-separated)
+    const facultyNames = facultyName.split(',').map(f => f.trim()).filter(f => f);
+    if (facultyNames.length === 0) {
+      errors.push(`Row ${i + 2}: Missing Faculty name`);
+      continue;
+    }
+
+    // Add all faculty to group
+    for (const fac of facultyNames) {
+      if (!group.faculties.includes(fac)) {
+        group.faculties.push(fac);
+        facultySet.add(fac);
+      }
+    }
+
+    // Use the latest values if provided in multiple rows (take max)
+    if (weeklyLimit > group.weeklyLimit) {
+      group.weeklyLimit = weeklyLimit;
+    }
+    // Use lab if any row says lab
+    if (type === 'lab') {
+      group.type = 'lab';
+    }
+  }
+
+  // Second pass: create class entries and split hours among faculty
+  for (const [groupKey, group] of subjectGroupMap) {
+    const trimmedClass = group.className;
+    const trimmedSubject = group.subjectName;
+    const isLab = group.type === 'lab';
+    const numFaculty = group.faculties.length;
+
+    // Calculate hours per faculty (split equally)
+    // For labs, each faculty gets 2 hours per session, split among them
+    const baseHours = group.weeklyLimit;
+    const hoursPerFaculty = Math.floor(baseHours / numFaculty);
+    const remainder = baseHours % numFaculty;
+
+    // Add class if not already exists
     if (!classMap.has(trimmedClass)) {
+      // Find the first row with this class to get department/semester info
+      const classRow = data.find(r => {
+        const c = r.Class || r.class || r.ClassName || r['Class Name'] || '';
+        return c.trim() === trimmedClass;
+      });
+
       classMap.set(trimmedClass, {
         name: trimmedClass,
-        department: row.Department || row.department || row['Department Name'] || '',
-        semester: parseInt(row.Semester || row.semester || row.Sem || 1),
-        scheme: row.Scheme || row.scheme || row['Scheme Year'] || '',
-        academicYear: row.AcademicYear || row['Academic Year'] || row.academicYear || new Date().getFullYear().toString(),
+        department: classRow?.Department || classRow?.department || classRow?.['Department Name'] || '',
+        semester: parseInt(classRow?.Semester || classRow?.semester || classRow?.Sem || 1),
+        scheme: classRow?.Scheme || classRow?.scheme || classRow?.['Scheme Year'] || '',
+        academicYear: classRow?.AcademicYear || classRow?.['Academic Year'] || classRow?.academicYear || new Date().getFullYear().toString(),
         subjects: []
       });
     }
@@ -97,34 +158,31 @@ export const parseExcelTimetable = (fileData) => {
     if (!subjectExists) {
       cls.subjects.push({
         name: trimmedSubject,
-        type: type === 'lab' ? 'lab' : 'theory'
+        type: group.type
       });
     }
 
-    // Validate type
-    if (type !== 'theory' && type !== 'lab') {
-      errors.push(`Row ${i + 2}: Type "${type}" must be "theory" or "lab"`);
-      continue;
-    }
+    // Create assignment for each faculty with split hours
+    // Each faculty gets independent scheduling (not co-teaching)
+    group.faculties.forEach((facultyName, index) => {
+      // Distribute remainder hours to first few faculty
+      const facultyHours = hoursPerFaculty + (index < remainder ? 1 : 0);
 
-    // Validate weeklyLimit
-    if (weeklyLimit < 1 || weeklyLimit > 20) {
-      errors.push(`Row ${i + 2}: WeeklyLimit must be between 1 and 20`);
-      continue;
-    }
-
-    // Determine isLab from type
-    const isLab = type === 'lab';
-
-    assignments.push({
-      className: trimmedClass,
-      subjectName: trimmedSubject,
-      facultyName: trimmedFaculty,
-      weeklyLimit: weeklyLimit,
-      isLab: isLab,
-      consecutivePeriods: isLab ? 2 : 1,
-      multiFaculty: false,
-      additionalFaculties: []
+      if (facultyHours > 0) {
+        // multiFaculty=false means each faculty has independent schedule
+        // They don't need to teach together - hours are just split between them
+        // The algorithm will check for conflicts independently for each
+        assignments.push({
+          className: trimmedClass,
+          subjectName: trimmedSubject,
+          facultyName: facultyName,
+          weeklyLimit: facultyHours,
+          isLab: isLab,
+          consecutivePeriods: isLab ? 2 : 1,
+          multiFaculty: false,
+          additionalFaculties: []
+        });
+      }
     });
   }
 
@@ -170,15 +228,17 @@ export const parseExcelTimetable = (fileData) => {
 /**
  * Generate a blank Excel template file with single sheet format
  * All data in ONE sheet - easy to fill in
+ * Supports multiple faculty (comma-separated)
  */
 export const generateTemplate = () => {
   const workbook = XLSX.utils.book_new();
 
   // Single sheet with all data
   // First row is config, rest are assignments
+  // For multi-faculty, use comma-separated names - hours split equally
   const templateData = [
     { Days: 5, Periods: 6, Faculty: 'Dr. John Smith', Class: 'BCS-1', Subject: 'Mathematics', Type: 'theory', WeeklyLimit: 4, Department: 'Computer Science', Semester: 1, Scheme: '2023', AcademicYear: '2023-24' },
-    { Days: '', Periods: '', Faculty: 'Dr. John Smith', Class: 'BCS-1', Subject: 'Physics', Type: 'theory', WeeklyLimit: 3, Department: '', Semester: '', Scheme: '', AcademicYear: '' },
+    { Days: '', Periods: '', Faculty: 'Dr. Smith, Prof. Jones', Class: 'BCS-1', Subject: 'Physics', Type: 'theory', WeeklyLimit: 4, Department: '', Semester: '', Scheme: '', AcademicYear: '' },
     { Days: '', Periods: '', Faculty: 'Dr. John Smith', Class: 'BCS-1', Subject: 'C Programming', Type: 'lab', WeeklyLimit: 2, Department: '', Semester: '', Scheme: '', AcademicYear: '' },
     { Days: '', Periods: '', Faculty: 'Prof. Jane Doe', Class: 'BCS-2', Subject: 'Data Structures', Type: 'theory', WeeklyLimit: 4, Department: '', Semester: '', Scheme: '', AcademicYear: '' },
     { Days: '', Periods: '', Faculty: 'Prof. Jane Doe', Class: 'BCS-2', Subject: 'Database', Type: 'theory', WeeklyLimit: 3, Department: '', Semester: '', Scheme: '', AcademicYear: '' },
@@ -194,7 +254,7 @@ export const generateTemplate = () => {
   worksheet['!cols'] = [
     { wch: 8 },  // Days
     { wch: 10 }, // Periods
-    { wch: 20 }, // Faculty
+    { wch: 25 }, // Faculty (wider for multiple)
     { wch: 12 }, // Class
     { wch: 20 }, // Subject
     { wch: 8 },  // Type
