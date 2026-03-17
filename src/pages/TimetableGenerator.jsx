@@ -83,7 +83,7 @@ const TimetableGenerator = () => {
   const [conflicts, setConflicts] = useState([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false); // Prevent double-save
-  const [activeTab, setActiveTab] = useState(userRole === 'student' ? 'class' : 'faculty'); // Students default to class view
+  const [activeTab, setActiveTab] = useState('class'); // Class timetable shown first by default
   
   // Switch/swap cells state
   const [selectedCells, setSelectedCells] = useState([]); // Array to store [row, col] of selected cells
@@ -861,45 +861,125 @@ const TimetableGenerator = () => {
     }
   };
 
-  // Perform the switch/swap operation
+  // Perform the switch/swap operation — conflict-validated & dual-timetable sync
   const performSwitch = (gridName, timetableData, isClass) => {
     if (selectedCells.length !== 2) {
-      showToast('Please select exactly 2 cells to switch', 'warning');
+      showWarning('Please select exactly 2 cells to switch');
       return;
     }
 
     const [[row1, col1], [row2, col2]] = selectedCells;
-    
-    try {
-      // Create a copy of the timetables
-      const newFacultyTimetables = JSON.parse(JSON.stringify(generatedTimetable.facultyTimetables));
-      const newClassTimetables = JSON.parse(JSON.stringify(generatedTimetable.classTimetables));
-      
-      if (isClass) {
-        // Swap in class timetables
-        [newClassTimetables[gridName][row1][col1], newClassTimetables[gridName][row2][col2]] = 
-        [newClassTimetables[gridName][row2][col2], newClassTimetables[gridName][row1][col1]];
-      } else {
-        // Swap in faculty timetables
-        [newFacultyTimetables[gridName][row1][col1], newFacultyTimetables[gridName][row2][col2]] = 
-        [newFacultyTimetables[gridName][row2][col2], newFacultyTimetables[gridName][row1][col1]];
-      }
-      
-      // Update the timetable
-      setGeneratedTimetable({
-        ...generatedTimetable,
-        facultyTimetables: newFacultyTimetables,
-        classTimetables: newClassTimetables
-      });
-      
-      // Reset selection
+
+    if (row1 === row2 && col1 === col2) {
+      showWarning('Please select two different cells to switch');
       setSelectedCells([]);
       setSwitchingGridName(null);
-      
-      showToast('Positions switched successfully!', 'success');
+      return;
+    }
+
+    try {
+      // Deep-copy both timetables so we never mutate state directly
+      const newFaculty = JSON.parse(JSON.stringify(generatedTimetable.facultyTimetables));
+      const newClass   = JSON.parse(JSON.stringify(generatedTimetable.classTimetables));
+
+      if (isClass) {
+        // === CLASS TIMETABLE SWITCH ===
+        // gridName = class (e.g. "BCS-1"), cells hold subject names
+        const subj1 = newClass[gridName][row1][col1];
+        const subj2 = newClass[gridName][row2][col2];
+
+        // Find which faculty occupies each slot for this class
+        let faculty1 = null;
+        let faculty2 = null;
+        for (const fName in newFaculty) {
+          if (newFaculty[fName][row1]?.[col1] === gridName) faculty1 = fName;
+          if (newFaculty[fName][row2]?.[col2] === gridName) faculty2 = fName;
+        }
+
+        // Conflict: faculty1 moving to slot2 — is faculty1 already busy there?
+        if (subj1 !== 'FREE' && faculty1) {
+          const occupied = newFaculty[faculty1][row2]?.[col2];
+          if (occupied !== 'FREE' && occupied !== gridName) {
+            showError(`❌ Conflict: ${faculty1} is already teaching "${occupied}" at Day ${row2 + 1} Period ${col2 + 1}. Switch blocked.`);
+            return;
+          }
+        }
+        // Conflict: faculty2 moving to slot1 — is faculty2 already busy there?
+        if (subj2 !== 'FREE' && faculty2) {
+          const occupied = newFaculty[faculty2][row1]?.[col1];
+          if (occupied !== 'FREE' && occupied !== gridName) {
+            showError(`❌ Conflict: ${faculty2} is already teaching "${occupied}" at Day ${row1 + 1} Period ${col1 + 1}. Switch blocked.`);
+            return;
+          }
+        }
+
+        // ✅ Safe — swap subjects in class timetable
+        newClass[gridName][row1][col1] = subj2;
+        newClass[gridName][row2][col2] = subj1;
+        // Sync faculty timetable
+        if (faculty1) {
+          newFaculty[faculty1][row1][col1] = 'FREE';
+          newFaculty[faculty1][row2][col2] = gridName;
+        }
+        if (faculty2 && faculty2 !== faculty1) {
+          newFaculty[faculty2][row2][col2] = 'FREE';
+          newFaculty[faculty2][row1][col1] = gridName;
+        }
+
+      } else {
+        // === FACULTY TIMETABLE SWITCH ===
+        // gridName = faculty (e.g. "Dr. Smith"), cells hold class names
+        const class1 = newFaculty[gridName][row1][col1];
+        const class2 = newFaculty[gridName][row2][col2];
+
+        // Conflict: class1 moving to slot2 — is that slot already busy for class1?
+        if (class1 !== 'FREE' && newClass[class1]) {
+          const occupied = newClass[class1][row2]?.[col2];
+          if (occupied !== 'FREE') {
+            showError(`❌ Conflict: ${class1} already has "${occupied}" at Day ${row2 + 1} Period ${col2 + 1}. Switch blocked.`);
+            return;
+          }
+        }
+        // Conflict: class2 moving to slot1 — is that slot already busy for class2?
+        if (class2 !== 'FREE' && newClass[class2]) {
+          const occupied = newClass[class2][row1]?.[col1];
+          if (occupied !== 'FREE') {
+            showError(`❌ Conflict: ${class2} already has "${occupied}" at Day ${row1 + 1} Period ${col1 + 1}. Switch blocked.`);
+            return;
+          }
+        }
+
+        // Snapshot subject names before modifying anything
+        const subj1 = class1 !== 'FREE' && newClass[class1] ? newClass[class1][row1][col1] : 'FREE';
+        const subj2 = class2 !== 'FREE' && newClass[class2] ? newClass[class2][row2][col2] : 'FREE';
+
+        // ✅ Safe — swap classes in faculty timetable
+        newFaculty[gridName][row1][col1] = class2;
+        newFaculty[gridName][row2][col2] = class1;
+        // Sync class timetables
+        if (class1 !== 'FREE' && newClass[class1]) {
+          newClass[class1][row1][col1] = 'FREE';
+          newClass[class1][row2][col2] = subj1;
+        }
+        if (class2 !== 'FREE' && newClass[class2] && class2 !== class1) {
+          newClass[class2][row2][col2] = 'FREE';
+          newClass[class2][row1][col1] = subj2;
+        }
+      }
+
+      // Commit both timetables atomically
+      setGeneratedTimetable({
+        ...generatedTimetable,
+        facultyTimetables: newFaculty,
+        classTimetables: newClass
+      });
+      setSelectedCells([]);
+      setSwitchingGridName(null);
+      showSuccess('✅ Positions switched — no conflicts!');
+
     } catch (error) {
       console.error('Error switching cells:', error);
-      showToast('Failed to switch positions: ' + error.message, 'error');
+      showError('Failed to switch positions: ' + error.message);
     }
   };
 

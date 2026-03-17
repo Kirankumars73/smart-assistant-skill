@@ -367,7 +367,7 @@ const handleDeletePrediction = async (predictionId) => {
               transition={{ delay: 0.2, duration: 0.6 }}
               className="mb-12"
             >
-              <Card>
+              <Card hover={false}>
                 <h2 className="text-2xl font-bold mb-6">Upload Question Data</h2>
                 
                 {/* Subject Information */}
@@ -789,7 +789,7 @@ const handleDeletePrediction = async (predictionId) => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.7, duration: 0.6 }}
               >
-                <Card>
+                <Card hover={false}>
                   <h3 className="text-2xl font-bold mb-6">Prediction Statistics</h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                     <div className="text-center">
@@ -822,7 +822,7 @@ const handleDeletePrediction = async (predictionId) => {
               transition={{ delay: 0.2, duration: 0.6 }}
               className="mb-12"
             >
-              <Card>
+              <Card hover={false}>
                 <h2 className="text-2xl font-bold mb-6">Search Question Predictions</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   <Input
@@ -862,7 +862,7 @@ const handleDeletePrediction = async (predictionId) => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4, duration: 0.6 }}
             >
-              <Card>
+              <Card hover={false}>
                 <h2 className="text-2xl font-bold mb-6">
                   {hasFacultyAccess() ? 'Previously Generated Predictions' : 'Available Predictions'}
                 </h2>
@@ -929,7 +929,7 @@ const handleDeletePrediction = async (predictionId) => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4, duration: 0.6 }}
             >
-              <Card>
+              <Card hover={false}>
                 <div className="text-center py-12">
                   <div className="text-6xl mb-4">📊</div>
                   <h2 className="text-2xl font-bold mb-2">No Predictions Yet</h2>

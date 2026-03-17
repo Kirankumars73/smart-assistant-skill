@@ -173,6 +173,7 @@ export const parseExcelTimetable = (fileData) => {
         // They don't need to teach together - hours are just split between them
         // The algorithm will check for conflicts independently for each
         assignments.push({
+          id: Date.now() + Math.random(), // unique id required for removeAssignment()
           className: trimmedClass,
           subjectName: trimmedSubject,
           facultyName: facultyName,
