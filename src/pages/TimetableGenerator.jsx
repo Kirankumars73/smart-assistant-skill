@@ -579,29 +579,37 @@ const TimetableGenerator = () => {
       
       if (algorithm === 'genetic') {
         console.log('🧬 Using Genetic Algorithm');
-        
-        // Progress callback for GA
+
+        // Warn the user if dataset is very large before starting
+        const totalAssignments = assignments.length;
+        if (totalAssignments > 80) {
+          showWarning(`Large dataset detected (${totalAssignments} assignments). GA auto-scaled to a safe size. This may take 20–60 seconds...`);
+        }
+
+        // Progress callback — now includes totalGenerations for accurate progress %
         const onProgress = (progress) => {
           setGaProgress({
             generation: progress.generation,
+            totalGenerations: progress.totalGenerations || gaParams.maxGenerations,
             bestFitness: progress.bestFitness,
             avgFitness: progress.avgFitness,
             conflicts: progress.conflicts,
             isRunning: true
           });
         };
-        
+
         result = await TimetableService.generateTimetableWithGA(gaParams, onProgress);
-        
+
       } else {
         console.log('🔄 Using Backtracking Algorithm');
         result = TimetableService.generateTimetable();
       }
-      
+
       if (result.success) {
+        // Always display the timetable — GA returns success:true even with soft violations
         setGeneratedTimetable(result);
-        
-        // Detect conflicts
+
+        // Detect conflicts for the conflict panel
         const foundConflicts = detectConflicts(
           result.facultyTimetables,
           result.classTimetables,
@@ -609,20 +617,25 @@ const TimetableGenerator = () => {
           config.cols
         );
         setConflicts(foundConflicts);
-        
+
         if (foundConflicts.length > 0) {
           console.log(`⚠️ Timetable generated with ${foundConflicts.length} conflict(s):`, foundConflicts);
         } else {
           console.log('✅ Timetable generated successfully with no conflicts');
         }
-        
-        // Show success message with algorithm info
+
+        // Show appropriate toast: warning if violations exist, success otherwise
         const algorithmName = algorithm === 'genetic' ? 'Genetic Algorithm' : 'Backtracking';
-        const fitnessInfo = result.fitness ? ` (Fitness: ${result.fitness})` : '';
-        showToast(`Timetable generated successfully using ${algorithmName}!${fitnessInfo}`, 'success');
-        
+        if (result.hasViolations) {
+          // Use showWarning so the user knows they may need to adjust a few slots
+          showWarning(result.message || `Timetable generated (best effort) — some slots could not satisfy all constraints. Check the Conflicts panel.`);
+        } else {
+          const fitnessInfo = result.fitness ? ` (Fitness: ${result.fitness})` : '';
+          showSuccess(`Timetable generated successfully using ${algorithmName}!${fitnessInfo}`);
+        }
+
       } else {
-        showToast(result.message, 'error');
+        showError(result.message || 'Failed to generate timetable.');
       }
     } catch (error) {
       console.error('Error generating timetable:', error);
@@ -1995,7 +2008,7 @@ const TimetableGenerator = () => {
           
           {/* View Mode - Browse Timetables */}
           {viewMode === 'view' && (
-            <Card>
+            <Card hover={false}>
               <h2 className="text-2xl font-bold mb-6">Saved Timetables</h2>
               
               {/* Search/Filter */}
@@ -2111,7 +2124,7 @@ const TimetableGenerator = () => {
           
           {/* Create Mode - Wizard */}
           {viewMode === 'create' && (
-            <Card>
+            <Card hover={false}>
               {renderProgressIndicator()}
               
               <AnimatePresence mode="wait">

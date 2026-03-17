@@ -645,10 +645,11 @@ const convertLabDataForGA = () => {
   return allLabData.map(({ limit, count, faculties, className, subjectName, isLab }) => ({
     facultyName: faculties[0],
     className,
-    subjectName,
+    // Ensure lab subjects always carry the '*' marker so the GA recognises them
+    subjectName: isLab && !subjectName.endsWith('*') ? subjectName + '*' : subjectName,
     weeklyLimit: limit,
-    isLab,
-    consecutivePeriods: count,
+    isLab: true,
+    consecutivePeriods: count || 2,
     additionalFaculties: faculties.slice(1)
   }));
 };
@@ -661,8 +662,8 @@ const convertLabDataForGA = () => {
 export const generateTimetableWithGA = async (gaConfig = {}, onProgress = null) => {
   try {
     console.log('🧬 Starting Genetic Algorithm Timetable Generation...');
-    
-    // Get all data
+
+    // Collect all data from service state
     const faculties = Object.keys(facultyTimetable);
     const classes = Object.keys(classTimetable);
     const regularAssignments = convertAssignmentsForGA();
@@ -674,15 +675,36 @@ export const generateTimetableWithGA = async (gaConfig = {}, onProgress = null) 
       day,
       period: time
     }));
-    
-    // Prepare config
+
+    const totalAssignments = (regularAssignments?.length || 0) + (labAssignments?.length || 0);
+    console.log('[GA] Data summary:', {
+      faculties: faculties.length,
+      classes: classes.length,
+      regularAssignments: regularAssignments.length,
+      labAssignments: labAssignments.length,
+      manualAssignments: manualAssignments.length,
+      totalAssignments
+    });
+
+    // Validate
+    if (!faculties || faculties.length === 0) {
+      return { success: false, message: 'No faculties found. Please add faculty data first.', facultyTimetables: facultyTimetable, classTimetables: classTimetable };
+    }
+    if (!classes || classes.length === 0) {
+      return { success: false, message: 'No classes found. Please add class data first.', facultyTimetables: facultyTimetable, classTimetables: classTimetable };
+    }
+    if (totalAssignments === 0) {
+      return { success: false, message: 'No subject assignments found. Please add assignments first.', facultyTimetables: facultyTimetable, classTimetables: classTimetable };
+    }
+
+    // Build GA config (adaptive scaling happens inside runGeneticAlgorithm)
     const config = {
       rows,
       cols,
       ...gaConfig
     };
-    
-    // Run GA
+
+    // Run the genetic algorithm
     const bestChromosome = await GeneticAlgorithm.runGeneticAlgorithm(
       config,
       faculties,
@@ -692,30 +714,35 @@ export const generateTimetableWithGA = async (gaConfig = {}, onProgress = null) 
       labAssignments,
       onProgress
     );
-    
+
     if (!bestChromosome) {
       return {
         success: false,
-        message: 'Genetic Algorithm failed to generate timetable',
+        message: 'Genetic Algorithm failed to produce any result. Try reducing data size or using Backtracking.',
         facultyTimetables: facultyTimetable,
         classTimetables: classTimetable
       };
     }
-    
-    // Apply best solution to our timetables
+
+    // Apply the best solution found
     facultyTimetable = bestChromosome.genes.faculty;
     classTimetable = bestChromosome.genes.class;
-    
-    // Check if solution is acceptable
-    const hasHardViolations = bestChromosome.conflicts.some(c => 
+
+    const hardViolations = bestChromosome.conflicts.filter(c =>
       ['FACULTY_DOUBLE_BOOKING', 'CLASS_DOUBLE_BOOKING', 'LAB_NON_CONSECUTIVE'].includes(c.type)
     );
-    
+
+    // IMPORTANT: Always return success:true so the timetable is shown to the user.
+    // Hard violations are reported as a warning, not as a failure —
+    // the user can still view, export, and manually adjust the timetable.
+    const message = hardViolations.length > 0
+      ? `Timetable generated (best effort) with ${hardViolations.length} hard constraint violation(s) out of ${bestChromosome.conflicts.length} total. You can still export and adjust manually.`
+      : `Timetable generated successfully with Genetic Algorithm! (Fitness: ${bestChromosome.fitness}, Generation: ${bestChromosome.generation + 1})`;
+
     return {
-      success: !hasHardViolations,
-      message: hasHardViolations 
-        ? `Timetable generated with ${bestChromosome.conflicts.length} constraint violations (best effort)`
-        : 'Timetable generated successfully with GA!',
+      success: true,
+      message,
+      hasViolations: hardViolations.length > 0,
       facultyTimetables: facultyTimetable,
       classTimetables: classTimetable,
       fitness: bestChromosome.fitness,
@@ -723,9 +750,9 @@ export const generateTimetableWithGA = async (gaConfig = {}, onProgress = null) 
       generation: bestChromosome.generation,
       algorithm: 'genetic'
     };
-    
+
   } catch (error) {
-    console.error('Error in Genetic Algorithm:', error);
+    console.error('[GA] Error in generateTimetableWithGA:', error);
     return {
       success: false,
       message: `GA Error: ${error.message}`,

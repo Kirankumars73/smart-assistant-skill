@@ -53,6 +53,11 @@ export const ToastProvider = ({ children }) => {
     return showToast('info', message, options);
   }, [showToast]);
 
+  // Generic showToast that accepts (message, type) format - matches TimetableGenerator usage
+  const showToastGeneric = useCallback((message, type = 'info', options = {}) => {
+    return showToast(type, message, options);
+  }, [showToast]);
+
   const showRetry = useCallback((message, onRetry) => {
     return showToast('error', message, {
       duration: 0, // Don't auto-dismiss retry toasts
@@ -68,6 +73,7 @@ export const ToastProvider = ({ children }) => {
     showError,
     showWarning,
     showInfo,
+    showToast: showToastGeneric,
     showRetry,
     dismissToast
   };
