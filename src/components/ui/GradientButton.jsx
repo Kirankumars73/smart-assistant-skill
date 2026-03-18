@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 
 const GradientButton = ({ 
   children, 
@@ -23,24 +22,22 @@ const GradientButton = ({
   };
 
   return (
-    <motion.button
+    <button
       type={type}
       disabled={disabled}
-      whileHover={{ scale: 1.02, y: -2 }}
-      whileTap={{ scale: 0.98 }}
       className={`
         ${sizeClasses[size]}
         ${variantClasses[variant]}
         rounded-xl font-semibold
-        glow-button ripple
+        ripple active:scale-95
         transition-all duration-300
-        disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
+        disabled:opacity-50 disabled:cursor-not-allowed
         ${className}
       `}
       {...props}
     >
       {children}
-    </motion.button>
+    </button>
   );
 };
 
