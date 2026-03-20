@@ -123,16 +123,15 @@ const cloneChromosome = (chromosome) => {
 // ==================== INITIALIZATION ====================
 
 const assignSubjectRandom = (chromosome, assignment) => {
-  const { facultyName, className, weeklyLimit, subjectName, isLab, consecutivePeriods } = assignment;
+  const { facultyName, className, weeklyLimit, subjectName, isLab, consecutivePeriods, additionalFaculties = [] } = assignment;
   const { rows, cols } = chromosome.metadata;
 
-  // Guard: faculty and class must both exist in the chromosome
+  // Guard: primary faculty and class must both exist in the chromosome
   if (!chromosome.genes.faculty[facultyName] || !chromosome.genes.class[className]) {
     return false;
   }
 
   let assigned = 0;
-  // Increase max attempts for large grids: more slots means more retries needed
   const maxAttempts = Math.max(100, rows * cols * 3);
   let attempts = 0;
 
@@ -144,10 +143,9 @@ const assignSubjectRandom = (chromosome, assignment) => {
 
     if (isLab) {
       const labLen = consecutivePeriods || 2;
-      // Ensure lab fits within the day
       if (period + labLen > cols) continue;
 
-      // Check ALL consecutive slots are free for both faculty and class
+      // Check ALL consecutive slots are free for primary faculty, class, AND co-teachers
       let canAssign = true;
       for (let p = period; p < period + labLen; p++) {
         if (chromosome.genes.faculty[facultyName][day][p] !== 'FREE' ||
@@ -155,23 +153,49 @@ const assignSubjectRandom = (chromosome, assignment) => {
           canAssign = false;
           break;
         }
+        // Check additional co-teachers
+        for (const af of additionalFaculties) {
+          if (chromosome.genes.faculty[af] && chromosome.genes.faculty[af][day][p] !== 'FREE') {
+            canAssign = false;
+            break;
+          }
+        }
+        if (!canAssign) break;
       }
 
       if (canAssign) {
         for (let p = period; p < period + labLen; p++) {
           chromosome.genes.faculty[facultyName][day][p] = className;
-          // Labs always stored with '*' suffix so the UI can show them differently
           chromosome.genes.class[className][day][p] = subjectName.endsWith('*')
             ? subjectName
             : subjectName + '*';
+          // Co-teachers get the same slot in their faculty grid
+          for (const af of additionalFaculties) {
+            if (chromosome.genes.faculty[af]) {
+              chromosome.genes.faculty[af][day][p] = className;
+            }
+          }
         }
         assigned++;
       }
     } else {
+      // Check primary faculty AND class slot are free
       if (chromosome.genes.faculty[facultyName][day][period] === 'FREE' &&
           chromosome.genes.class[className][day][period] === 'FREE') {
+        // Check all co-teachers are also free at this slot
+        const coFree = additionalFaculties.every(
+          af => chromosome.genes.faculty[af] && chromosome.genes.faculty[af][day][period] === 'FREE'
+        );
+        if (!coFree) continue;
+
         chromosome.genes.faculty[facultyName][day][period] = className;
         chromosome.genes.class[className][day][period] = subjectName;
+        // Co-teachers share the slot — only faculty grid written, not class grid again
+        for (const af of additionalFaculties) {
+          if (chromosome.genes.faculty[af]) {
+            chromosome.genes.faculty[af][day][period] = className;
+          }
+        }
         assigned++;
       }
     }
@@ -209,13 +233,8 @@ export const initializePopulation = (config, faculties, classes, assignments, ma
       // Labs before theory so consecutive-slot logic has less interference
       if (labAssignments && labAssignments.length > 0) {
         labAssignments.forEach(labAssignment => {
-          // Each additional faculty also needs its own grid slots
-          const allFaculties = [labAssignment.facultyName, ...(labAssignment.additionalFaculties || [])];
-          allFaculties.forEach(faculty => {
-            if (chromosome.genes.faculty[faculty]) {
-              assignSubjectRandom(chromosome, { ...labAssignment, facultyName: faculty });
-            }
-          });
+          // assignSubjectRandom now handles ALL co-teachers internally — call once only
+          assignSubjectRandom(chromosome, labAssignment);
         });
       }
 
@@ -288,7 +307,9 @@ const evaluateFitness = (chromosome) => {
 
   // --- Class double-booking: same period in a class timetable is non-empty ---
   // This would mean two faculties scheduled to the same class at the same time.
-  // We detect it by counting how many faculty grids point to this class at each slot.
+  // EXCEPTION: co-teaching is intentional — 2+ faculty in the same class slot
+  // is only a conflict if the class grid for that slot is FREE (inconsistency),
+  // not when the class grid already has a subject (legitimate co-teaching).
   try {
     for (let day = 0; day < rows; day++) {
       for (let period = 0; period < cols; period++) {
@@ -302,8 +323,16 @@ const evaluateFitness = (chromosome) => {
         }
         for (const className in slotClassCounts) {
           if (slotClassCounts[className] > 1) {
-            fitness += PENALTIES.FACULTY_DOUBLE_BOOKING * (slotClassCounts[className] - 1);
-            conflicts.push({ type: 'FACULTY_DOUBLE_BOOKING', detail: `${className} @ day${day} p${period}` });
+            // Only penalise if the class grid for that slot is FREE (inconsistency / bad crossover)
+            // If the class grid already has a subject, this is intentional co-teaching — no penalty
+            const classSlotValue = chromosome.genes.class[className]
+              ? chromosome.genes.class[className][day][period]
+              : 'FREE';
+            if (classSlotValue === 'FREE') {
+              fitness += PENALTIES.FACULTY_DOUBLE_BOOKING * (slotClassCounts[className] - 1);
+              conflicts.push({ type: 'FACULTY_DOUBLE_BOOKING', detail: `${className} @ day${day} p${period}` });
+            }
+            // else: co-teaching (intentional), do not penalise
           }
         }
       }

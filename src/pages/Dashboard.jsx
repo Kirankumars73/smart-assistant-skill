@@ -58,37 +58,14 @@ const Dashboard = () => {
     checkStudentRegistration();
   }, [userRole, currentUser]);
 
-  // Show beautiful loading animation while role is being fetched
+  // Show loading animation while role is being fetched
   if (currentUser && userRole === null) {
     return (
       <div className="min-h-screen bg-midnight flex items-center justify-center relative">
         <NoiseTexture />
         <FloatingOrbs />
         <div className="mesh-gradient-bg" />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="text-center"
-        >
-          <motion.div
-            animate={{ 
-              rotate: 360,
-              scale: [1, 1.2, 1]
-            }}
-            transition={{ 
-              rotate: { duration: 2, repeat: Infinity, ease: "linear" },
-              scale: { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
-            }}
-            className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-r from-orange-500 via-pink-500 to-purple-500"
-          />
-          <motion.h2 
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="text-2xl font-bold text-gradient"
-          >
-            Loading your dashboard...
-          </motion.h2>
-        </motion.div>
+        <LoadingSpinner text="Loading your dashboard..." />
       </div>
     );
   }

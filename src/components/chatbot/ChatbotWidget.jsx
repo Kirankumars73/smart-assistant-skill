@@ -302,10 +302,11 @@ const ChatbotWidget = () => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.95 }}
             transition={{ type: 'spring', duration: 0.5 }}
-            className="fixed bottom-24 right-6 w-96 h-[600px] bg-gray-900 rounded-2xl shadow-2xl border border-gray-700 z-50 flex flex-col overflow-hidden"
+            className="fixed bottom-24 right-6 w-96 h-[600px] rounded-2xl shadow-2xl border border-white/10 z-50 flex flex-col overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, #0d1117 0%, #0f172a 100%)' }}
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-pink-500 to-orange-500 px-6 py-4">
+            <div className="bg-gradient-to-r from-cyan-600 via-blue-600 to-purple-600 px-6 py-4">
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-white font-bold text-lg">AI Assistant</h3>
@@ -341,7 +342,7 @@ const ChatbotWidget = () => {
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  className="bg-gray-800 border-b border-gray-700 overflow-hidden"
+                  className="border-b border-white/10 overflow-hidden" style={{ background: 'rgba(255,255,255,0.04)' }}
                 >
                   <div className="p-4 space-y-3">
                     <div>
@@ -396,9 +397,10 @@ const ChatbotWidget = () => {
                   <div
                     className={`max-w-[80%] px-4 py-2 rounded-lg whitespace-pre-line ${
                       msg.sender === 'user'
-                        ? 'bg-gradient-to-r from-pink-500 to-orange-500 text-white'
-                        : 'bg-gray-800 text-gray-200'
+                        ? 'bg-gradient-to-r from-cyan-600 to-purple-600 text-white'
+                        : 'text-gray-200 border border-white/10'
                     }`}
+                    style={msg.sender !== 'user' ? { background: 'rgba(255,255,255,0.06)' } : {}}
                   >
                     {msg.text}
                   </div>
@@ -410,11 +412,11 @@ const ChatbotWidget = () => {
                   animate={{ opacity: 1 }}
                   className="flex justify-start"
                 >
-                  <div className="bg-gray-800 px-4 py-2 rounded-lg">
+                  <div className="px-4 py-2 rounded-lg border border-white/10" style={{ background: 'rgba(255,255,255,0.06)' }}>
                     <div className="flex space-x-2">
-                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                      <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce" />
+                      <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
                     </div>
                   </div>
                 </motion.div>
@@ -424,7 +426,7 @@ const ChatbotWidget = () => {
 
             {/* Voice Controls */}
             {isVoiceMode && (
-              <div className="px-4 py-3 bg-gray-800/50 border-t border-gray-700">
+              <div className="px-4 py-3 border-t border-white/10" style={{ background: 'rgba(255,255,255,0.04)' }}>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={startVoiceInput}
@@ -432,7 +434,7 @@ const ChatbotWidget = () => {
                     className={`flex-1 py-3 rounded-lg font-semibold transition-all ${
                       isListening
                         ? 'bg-red-500 text-white animate-pulse'
-                        : 'bg-gradient-to-r from-pink-500 to-orange-500 text-white hover:shadow-lg'
+                        : 'bg-gradient-to-r from-cyan-600 to-purple-600 text-white hover:shadow-lg hover:shadow-cyan-500/25'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {isListening ? '🔴 Listening...' : '🎤 Tap to Speak'}
@@ -464,7 +466,7 @@ const ChatbotWidget = () => {
                     {[...Array(20)].map((_, i) => (
                       <motion.div
                         key={i}
-                        className="w-1 bg-gradient-to-t from-pink-500 to-orange-500 rounded-full"
+                        className="w-1 bg-gradient-to-t from-cyan-500 to-purple-500 rounded-full"
                         animate={{
                           height: [4, Math.random() * 24 + 4, 4]
                         }}
@@ -480,7 +482,7 @@ const ChatbotWidget = () => {
                 
                 {/* Speaking Indicator */}
                 {isSpeaking && (
-                  <div className="mt-2 flex items-center justify-center gap-2 text-sm text-orange-400">
+                  <div className="mt-2 flex items-center justify-center gap-2 text-sm text-cyan-400">
                     <span className="animate-pulse">🔊</span>
                     <span>Speaking...</span>
                   </div>
@@ -489,7 +491,7 @@ const ChatbotWidget = () => {
             )}
 
             {/* Text Input */}
-            <div className="p-4 border-t border-gray-700">
+            <div className="p-4 border-t border-white/10">
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -498,12 +500,13 @@ const ChatbotWidget = () => {
                   onKeyPress={(e) => e.key === 'Enter' && handleSend()}
                   placeholder={isVoiceMode ? "Or type here..." : "Ask me anything..."}
                   disabled={isVoiceMode && isListening}
-                  className="flex-1 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:opacity-50"
+                  className="flex-1 px-4 py-2 rounded-lg border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50"
+                  style={{ background: 'rgba(255,255,255,0.06)' }}
                 />
                 <button
                   onClick={handleSend}
                   disabled={!input.trim() || (isVoiceMode && isListening)}
-                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-pink-500 to-orange-500 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transition-shadow"
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-purple-600 text-white font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-cyan-500/25 transition-shadow"
                 >
                   Send
                 </button>

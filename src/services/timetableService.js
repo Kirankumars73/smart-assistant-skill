@@ -329,7 +329,7 @@ const assignRecursive = (allData, index = 0) => {
     return true;
   }
   
-  const { facultyName, className, limit, subjectName } = allData[index];
+  const { facultyName, className, limit, subjectName, additionalFaculties = [] } = allData[index];
   
   // Try up to 3 times with different random positions
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -352,10 +352,22 @@ const assignRecursive = (allData, index = 0) => {
       
       if (isSlotAvailable(facultyName, className, day, period) &&
           isSafeFromConsecutiveDifferentClasses(facultyName, className, day, period, false)) {
+        // Check co-teachers' faculty grids are also free at this slot
+        const coTeachersAvailable = additionalFaculties.every(
+          af => facultyTimetable[af] && facultyTimetable[af][day][period] === 'FREE'
+        );
+        if (!coTeachersAvailable) continue;
+
         const result = addData(facultyName, day, period, className, subjectName);
         if (result.success) {
           assignmentsMade.push({ day, period });
           successCount++;
+          // Co-teachers occupy the same slot — only mark their faculty grid
+          for (const af of additionalFaculties) {
+            if (facultyTimetable[af]) {
+              facultyTimetable[af][day][period] = className;
+            }
+          }
         }
       }
     }
@@ -367,10 +379,15 @@ const assignRecursive = (allData, index = 0) => {
       }
     }
     
-    // Backtrack: undo assignments
+    // Backtrack: undo assignments (primary + co-teachers)
     for (const { day, period } of assignmentsMade) {
       facultyTimetable[facultyName][day][period] = 'FREE';
       classTimetable[className][day][period] = 'FREE';
+      for (const af of additionalFaculties) {
+        if (facultyTimetable[af]) {
+          facultyTimetable[af][day][period] = 'FREE';
+        }
+      }
     }
   }
   
@@ -441,14 +458,17 @@ const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
       
       return true;
     } else {
-      // Multi-faculty regular subject
+      // Multi-faculty co-teaching: find common free slots for ALL faculty AND the class
       let commonPositions = new Set();
       
       for (let i = 0; i < rows; i++) {
         for (let j = 0; j < cols; j++) {
+          // Class slot must be free
+          if (classTimetable[className][i][j] !== 'FREE') continue;
           let allFree = true;
           for (const facultyName of faculties) {
-            if (!isSlotAvailable(facultyName, className, i, j)) {
+            if (!facultyTimetable[facultyName] ||
+                facultyTimetable[facultyName][i][j] !== 'FREE') {
               allFree = false;
               break;
             }
@@ -484,13 +504,16 @@ const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
         }
       }
       
-      // Assign selected positions to all faculties
+      // Assign selected positions: primary faculty writes class slot, co-teachers skip it
       for (const { day, period } of selectedPositions) {
-        for (const facultyName of faculties) {
-          const result = manualAssign(facultyName, className, subjectName, day, period, true);
-          if (!result) {
-            return false;
-          }
+        // Primary faculty — also writes the class grid
+        const primaryResult = manualAssign(faculties[0], className, subjectName, day, period, false, false);
+        if (!primaryResult) {
+          return false;
+        }
+        // Additional co-teachers — only mark their own faculty grid, class slot already filled
+        for (let fi = 1; fi < faculties.length; fi++) {
+          manualAssign(faculties[fi], className, subjectName, day, period, false, true);
         }
       }
       
@@ -504,8 +527,12 @@ const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
 
 /**
  * Manual assignment
+ * @param {boolean} isCoTeach - When true, skip the class-slot-busy check so a
+ *   second (or third…) co-teacher can be placed in the same slot as the first.
+ *   The class grid is NOT overwritten — it already has the correct subject from
+ *   the primary teacher's assignment.
  */
-const manualAssign = (facultyName, className, subjectName, day, period, isLab) => {
+const manualAssign = (facultyName, className, subjectName, day, period, isLab, isCoTeach = false) => {
   if (day < 0 || day >= rows || period < 0 || period >= cols) {
     return false;
   }
@@ -523,7 +550,10 @@ const manualAssign = (facultyName, className, subjectName, day, period, isLab) =
   }
   
   facultyTimetable[facultyName][day][period] = className;
-  classTimetable[className][day][period] = subjectName;
+  // Co-teachers share the same class slot — only the primary teacher writes the subject
+  if (!isCoTeach) {
+    classTimetable[className][day][period] = subjectName;
+  }
   
   return true;
 };

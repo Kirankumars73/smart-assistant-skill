@@ -12,8 +12,8 @@ import * as XLSX from 'xlsx';
  *  - "Type" must be "theory" or "lab" (case-insensitive)
  *  - "Consecutive Required" accepts: yes/no, true/false, 1/0 (case-insensitive)
  *  - "Faculty" may contain multiple names separated by commas.
- *    When multiple faculty are listed, "Weekly Hours" is split equally between them.
- *    The remainder (if any) is given to the first faculty member.
+ *    When multiple faculty are listed, ALL faculty are scheduled in the SAME slot
+ *    simultaneously (co-teaching). "Weekly Hours" is NOT split between them.
  *  - If Type=lab OR Consecutive Required=yes, the subject is treated as a lab.
  *  - "Consecutive Hours" defaults to 2 for labs, 1 for theory (if left blank).
  */
@@ -101,28 +101,22 @@ export const parseExcelTimetable = (fileData) => {
       cls.subjects.push({ name: subjectName, type: rawType });
     }
 
-    // ── Register faculty & split hours ────────────────────────────────────────
-    const numFaculty   = facultyNames.length;
-    const baseHours    = Math.floor(weeklyHours / numFaculty);
-    const remainder    = weeklyHours % numFaculty;
+    // ── Register faculty (co-teaching: all in same slot) ─────────────────────
+    // All faculty names are registered. One single assignment is created with
+    // the primary faculty + additionalFaculties list. The scheduler will book
+    // ALL of them into the SAME time slot simultaneously (co-teaching).
+    facultyNames.forEach(name => facultySet.add(name));
 
-    facultyNames.forEach((name, index) => {
-      facultySet.add(name);
-      const facultyHours = baseHours + (index < remainder ? 1 : 0);
-
-      if (facultyHours > 0) {
-        assignments.push({
-          id: Date.now() + Math.random(),
-          className,
-          subjectName: isLab && !subjectName.endsWith('*') ? subjectName + '*' : subjectName,
-          facultyName: name,
-          weeklyLimit: facultyHours,
-          isLab,
-          consecutivePeriods: isLab ? consecutiveHours : 1,
-          multiFaculty: false,
-          additionalFaculties: []
-        });
-      }
+    assignments.push({
+      id: Date.now() + Math.random(),
+      className,
+      subjectName: isLab && !subjectName.endsWith('*') ? subjectName + '*' : subjectName,
+      facultyName: facultyNames[0],
+      weeklyLimit: weeklyHours,
+      isLab,
+      consecutivePeriods: isLab ? consecutiveHours : 1,
+      multiFaculty: facultyNames.length > 1,
+      additionalFaculties: facultyNames.slice(1)
     });
   }
 
@@ -181,7 +175,7 @@ export const generateTemplate = () => {
       'Consecutive Hours': 1,
       'Faculty': 'Dr. John Smith'
     },
-    // ── Theory subject, TWO faculty sharing hours (4 hrs split → 2 each) ─────
+    // ── Theory subject, TWO faculty co-teaching (both in same class simultaneously) ──
     {
       'Class': 'BCS-1',
       'Subject': 'Physics',
