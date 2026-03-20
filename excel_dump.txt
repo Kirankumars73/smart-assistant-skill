@@ -1,0 +1,3 @@
+﻿Sheets: ['DepartmentData']
+=== Sheet: DepartmentData ===
+Row 1: ['Class', 'Subject', 'Type', 'Weekly Hours', 'Consecutive Required', 'Consecutive Hours', 'Faculty']

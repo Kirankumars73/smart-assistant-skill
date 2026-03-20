@@ -2318,13 +2318,20 @@ const TimetableGenerator = () => {
             </label>
           </div>
 
+          {/* Format hint */}
+          <div className="bg-gray-800 rounded-lg p-3 text-xs text-gray-400 space-y-1">
+            <p className="text-gray-300 font-semibold text-sm">📋 Required columns (sheet name: DepartmentData)</p>
+            <p><span className="text-pink-400">Class</span> · <span className="text-pink-400">Subject</span> · <span className="text-pink-400">Type</span> (theory/lab) · <span className="text-pink-400">Weekly Hours</span> · <span className="text-pink-400">Consecutive Required</span> (yes/no) · <span className="text-pink-400">Consecutive Hours</span> · <span className="text-pink-400">Faculty</span></p>
+            <p>💡 Multiple faculty = comma-separated names &rarr; hours split equally between them</p>
+          </div>
+
           {/* Download Template Link */}
           <div className="text-center">
             <button
               onClick={handleDownloadTemplate}
               className="text-blue-400 hover:text-blue-300 text-sm underline"
             >
-              Download template to see expected format
+              ⬇️ Download filled template example
             </button>
           </div>
 
@@ -2343,11 +2350,8 @@ const TimetableGenerator = () => {
           {/* Preview */}
           {importPreview && (
             <div className="bg-green-500/20 border border-green-500 rounded-lg p-4 space-y-3">
-              <h4 className="text-green-400 font-semibold">Preview - Ready to Import:</h4>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="text-gray-300">
-                  <span className="text-gray-500">Config:</span> {importPreview.config.rows} days × {importPreview.config.cols} periods
-                </div>
+              <h4 className="text-green-400 font-semibold">✅ Preview — Ready to Import:</h4>
+              <div className="grid grid-cols-3 gap-2 text-sm">
                 <div className="text-gray-300">
                   <span className="text-gray-500">Faculty:</span> {importPreview.faculties.length}
                 </div>
@@ -2358,9 +2362,13 @@ const TimetableGenerator = () => {
                   <span className="text-gray-500">Assignments:</span> {importPreview.assignments.length}
                 </div>
               </div>
-              <div className="text-xs text-gray-400 mt-2">
-                Classes: {importPreview.classes.map(c => c.name).join(', ')}
+              <div className="text-xs text-gray-400">
+                <span className="text-gray-500">Faculty:</span> {importPreview.faculties.join(', ')}
               </div>
+              <div className="text-xs text-gray-400">
+                <span className="text-gray-500">Classes:</span> {importPreview.classes.map(c => c.name).join(', ')}
+              </div>
+              <p className="text-xs text-yellow-400">⚠️ Days &amp; Periods are set in Step 1 — not read from Excel.</p>
             </div>
           )}
 
