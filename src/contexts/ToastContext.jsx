@@ -10,7 +10,7 @@ export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
 
   const showToast = useCallback((type, message, options = {}) => {
-    const id = toastId++;
+    const id = ++toastId;
     const duration = options.duration !== undefined ? options.duration : 4000;
     
     const toast = {
@@ -23,10 +23,10 @@ export const ToastProvider = ({ children }) => {
 
     setToasts((prev) => [...prev, toast]);
 
-    // Auto-dismiss
+    // Auto-dismiss: use setToasts directly (no stale closure on dismissToast)
     if (duration > 0) {
       setTimeout(() => {
-        dismissToast(id);
+        setToasts((prev) => prev.filter((t) => t.id !== id));
       }, duration);
     }
 

@@ -166,29 +166,27 @@ export const AuthProvider = ({ children }) => {
         // If this is the hardcoded admin, set role immediately
         if (isHardcodedAdmin) {
           setUserRole('admin');
+          setLoading(false); // role known immediately
           // Create/update profile in background (non-blocking)
-          createUserProfile(user).catch(err => 
+          createUserProfile(user).catch(err =>
             console.error('Error creating user profile:', err)
           );
         } else {
-          // For other users, DON'T set default role - wait for Firestore
-          // This prevents showing wrong dashboard while loading
-          
-          // Fetch role from Firestore (blocking to prevent wrong redirect)
+          // For non-admin users, keep loading=true until role is fetched
+          // to prevent flashing the wrong dashboard/redirect.
           createUserProfile(user)
             .then(() => fetchUserRole(user))
             .then(role => {
               console.log('User role fetched:', role);
               setUserRole(role);
+              setLoading(false); // only unblock UI after role is confirmed
             })
             .catch(err => {
               console.error('Error fetching user role:', err);
               setUserRole(USER_ROLES.STUDENT); // Fallback
+              setLoading(false);
             });
         }
-        
-        // Set loading=false immediately - don't wait for Firestore
-        setLoading(false);
       } else {
         setCurrentUser(null);
         setUserRole(null);

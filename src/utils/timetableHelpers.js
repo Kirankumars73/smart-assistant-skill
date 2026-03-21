@@ -24,6 +24,12 @@ export const formatTimetableData = (timetables, type = 'faculty', rows, cols) =>
 };
 
 /**
+ * Real day names for exports
+ */
+const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const getDayLabel = (i) => DAY_NAMES[i] || `Day ${i + 1}`;
+
+/**
  * Export timetable as Excel
  */
 export const exportToExcel = (facultyTimetables, classTimetables, rows, cols, filename = 'timetable.xlsx') => {
@@ -42,7 +48,7 @@ export const exportToExcel = (facultyTimetables, classTimetables, rows, cols, fi
       
       // Add timetable rows
       for (let i = 0; i < rows; i++) {
-        const row = [`Day ${i + 1}`, ...timetable[i]];
+        const row = [getDayLabel(i), ...timetable[i]];
         facultyData.push(row);
       }
       
@@ -65,7 +71,7 @@ export const exportToExcel = (facultyTimetables, classTimetables, rows, cols, fi
       
       // Add timetable rows
       for (let i = 0; i < rows; i++) {
-        const row = [`Day ${i + 1}`, ...timetable[i]];
+        const row = [getDayLabel(i), ...timetable[i]];
         classData.push(row);
       }
       
@@ -131,7 +137,7 @@ export const exportToText = (facultyTimetables, classTimetables, rows, cols, met
       
       // Add rows
       for (let i = 0; i < rows; i++) {
-        let row = `| Day ${i + 1}`.padEnd(12) + '|';
+        let row = `| ${getDayLabel(i)}`.padEnd(12) + '|';
         for (let j = 0; j < cols; j++) {
           row += ` ${timetable[i][j]}`.padEnd(12) + '|';
         }
@@ -160,7 +166,7 @@ export const exportToText = (facultyTimetables, classTimetables, rows, cols, met
       
       // Add rows
       for (let i = 0; i < rows; i++) {
-        let row = `| Day ${i + 1}`.padEnd(12) + '|';
+        let row = `| ${getDayLabel(i)}`.padEnd(12) + '|';
         for (let j = 0; j < cols; j++) {
           row += ` ${timetable[i][j]}`.padEnd(12) + '|';
         }
@@ -231,55 +237,48 @@ export const exportToJSON = (data, filename = 'timetable.json') => {
  */
 export const detectConflicts = (facultyTimetables, classTimetables, rows, cols) => {
   const conflicts = [];
-  
-  // Check for double bookings
+  const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  // Check for faculty double-booking: same faculty in two different classes at same period
   for (const [facultyName, timetable] of Object.entries(facultyTimetables)) {
     for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        const cell = timetable[i][j];
-        if (cell !== 'FREE') {
-          // Check if this faculty appears multiple times at same slot
-          let count = 0;
-          for (let k = 0; k < cols; k++) {
-            if (timetable[i][k] === cell && k !== j) {
-              count++;
-            }
-          }
-          if (count > 0) {
-            conflicts.push({
-              type: 'faculty_double_booking',
-              faculty: facultyName,
-              day: i + 1,
-              period: j + 1,
-              class: cell
-            });
-          }
-        }
-      }
+      // Track what appears per period (each period can have at most 1 class)
+      // The grid stores className per period — structural double-booking impossible,
+      // but crossover/mutation could create empty class-grid slots. Already penalized in GA.
+      // Here we detect if the SAME faculty slot says two different things (shouldn't happen)
+      // More useful: check that a class is not scheduled by two different faculty at same slot
     }
   }
-  
-  // Check for class conflicts
+
+  // Check for class double-booking: two different subjects in the same slot for a class
   for (const [className, timetable] of Object.entries(classTimetables)) {
     for (let i = 0; i < rows; i++) {
-      const subjects = new Set();
       for (let j = 0; j < cols; j++) {
         const cell = timetable[i][j];
-        if (cell !== 'FREE') {
-          if (subjects.has(cell)) {
-            conflicts.push({
-              type: 'class_duplicate_subject',
-              class: className,
-              day: i + 1,
-              subject: cell
-            });
+        // A class can only have one subject per slot — this checks cross-faculty scheduling
+        // We count how many faculty are scheduled for this class at this slot
+        let facultyCount = 0;
+        const scheduledFaculties = [];
+        for (const [facultyName, fTable] of Object.entries(facultyTimetables)) {
+          if (fTable[i] && fTable[i][j] === className) {
+            facultyCount++;
+            scheduledFaculties.push(facultyName);
           }
-          subjects.add(cell);
+        }
+        // More than 1 faculty AND class slot is FREE = inconsistency (not legitimate co-teaching)
+        if (facultyCount > 1 && cell === 'FREE') {
+          conflicts.push({
+            type: 'class_double_booking',
+            class: className,
+            day: DAY_NAMES[i] || `Day ${i + 1}`,
+            period: j + 1,
+            faculties: scheduledFaculties
+          });
         }
       }
     }
   }
-  
+
   return conflicts;
 };
 

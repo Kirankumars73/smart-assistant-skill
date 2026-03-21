@@ -44,6 +44,11 @@ const fetchContextData = async () => {
       // Extract unique subjects and branches
       students.forEach(s => {
         if (s.branch) context.branches.add(s.branch);
+        if (s.subjects && Array.isArray(s.subjects)) {
+          s.subjects.forEach(sub => {
+            if (sub.name) context.subjects.add(sub.name);
+          });
+        }
       });
     }
 

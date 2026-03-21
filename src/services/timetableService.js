@@ -266,32 +266,20 @@ const findEmptyPositions = (facultyName, className, count, isLab) => {
   const emptyPositions = [];
   
   if (isLab) {
-    // For labs, find consecutive empty slots
+    // For labs, slide a window of 'count' across every possible start position
     for (let i = 0; i < rows; i++) {
-      // Check first 'count' consecutive hours
-      let firstConsecutive = true;
-      for (let j = 0; j < count; j++) {
-        if (!isSlotAvailable(facultyName, className, i, j)) {
-          firstConsecutive = false;
-          break;
-        }
-      }
-      if (firstConsecutive) {
-        emptyPositions.push({ day: i, period: 0 });
-      }
-      
-      // Check last 'count' consecutive hours (avoid Friday last slots for 3-hour labs)
-      if (i !== 4 || count < 3) {
-        let lastConsecutive = true;
-        const startPos = cols - count;
-        for (let j = startPos; j < cols; j++) {
-          if (!isSlotAvailable(facultyName, className, i, j)) {
-            lastConsecutive = false;
+      // Avoid scheduling 3-hour labs in the last slot of Friday (day index 4)
+      const maxStart = (i === 4 && count >= 3) ? cols - count - 1 : cols - count;
+      for (let startPeriod = 0; startPeriod <= maxStart; startPeriod++) {
+        let allFree = true;
+        for (let k = 0; k < count; k++) {
+          if (!isSlotAvailable(facultyName, className, i, startPeriod + k)) {
+            allFree = false;
             break;
           }
         }
-        if (lastConsecutive) {
-          emptyPositions.push({ day: i, period: startPos });
+        if (allFree) {
+          emptyPositions.push({ day: i, period: startPeriod });
         }
       }
     }
@@ -347,9 +335,11 @@ const assignRecursive = (allData, index = 0) => {
   
   const { facultyName, className, limit, subjectName, additionalFaculties = [] } = allData[index];
   
-  // Try up to 3 times with different random positions
-  for (let attempt = 0; attempt < 3; attempt++) {
+  // Try up to 5 times — findEmptyPositions shuffles positions internally,
+  // so each attempt gets a different slot ordering for better coverage.
+  for (let attempt = 0; attempt < 5; attempt++) {
     const positions = findEmptyPositions(facultyName, className, limit, false);
+
     
     if (positions === false) {
       continue;

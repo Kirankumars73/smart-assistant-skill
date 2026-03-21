@@ -51,8 +51,9 @@ export const retryOperation = async (
         onRetry(attempt + 1, maxRetries);
       }
 
-      // Wait before retrying
-      await sleep(delay);
+      // Wait before retrying (with jitter to prevent thundering herd)
+      const jitter = delay * 0.2 * (Math.random() * 2 - 1); // ±20% random jitter
+      await sleep(Math.max(0, Math.round(delay + jitter)));
 
       // Exponential backoff
       delay = Math.min(delay * backoffFactor, maxDelay);

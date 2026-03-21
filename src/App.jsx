@@ -23,10 +23,14 @@ function AppContent() {
   return (
     <div className="App">
       <Routes>
-        {/* Public route - shows login page for unauthenticated users */}
+        {/* Public routes */}
         <Route
           path="/"
           element={currentUser ? <Navigate to="/dashboard" replace /> : <LoginPage />}
+        />
+        <Route
+          path="/home"
+          element={currentUser ? <HomePage /> : <Navigate to="/" replace />}
         />
 
         {/* Protected routes */}
@@ -109,10 +113,7 @@ function AppContent() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
-      {/* Login overlay shown when not authenticated */}
-      {!currentUser && <LoginPage />}
-
-      {/* Chatbot widget (only visible to faculty/admin) */}
+      {/* Chatbot widget (only visible to authenticated users) */}
       {currentUser && <ChatbotWidget />}
     </div>
   );

@@ -14,6 +14,9 @@ export const getErrorMessage = (error) => {
     const authErrors = {
       'auth/user-not-found': 'No account found with this email',
       'auth/wrong-password': 'Incorrect password',
+      'auth/invalid-credential': 'Incorrect email or password',
+      'auth/too-many-requests': 'Too many failed attempts. Please wait before trying again',
+      'auth/missing-password': 'Please enter your password',
       'auth/email-already-in-use': 'This email is already registered',
       'auth/weak-password': 'Password should be at least 6 characters',
       'auth/invalid-email': 'Invalid email address',

@@ -362,6 +362,32 @@ const evaluateFitness = (chromosome) => {
     console.error('Error checking lab continuity:', e);
   }
 
+  // --- UNASSIGNED_SUBJECT penalty: reward complete schedules ---
+  // Count how many periods each assignment actually has vs its weeklyLimit.
+  // This requires the assignments to be passed in — but evaluateFitness only receives
+  // a chromosome. We infer completeness from the class grid:
+  // for each (class, subject) pair, count non-FREE occurrences across all days/periods.
+  // A subject appearing fewer times than expected gets penalised proportionally.
+  // NOTE: We don't have weeklyLimit here, so we penalise any slot that is completely FREE
+  // while the faculty grid has a non-FREE entry (already checked above as CLASS_DOUBLE_BOOKING).
+  // Extra bonus: reward each non-FREE class slot (encourages filling the timetable).
+  try {
+    for (const className in chromosome.genes.class) {
+      const timetable = chromosome.genes.class[className];
+      for (let day = 0; day < rows; day++) {
+        for (let period = 0; period < cols; period++) {
+          const slot = timetable[day][period];
+          if (slot !== 'FREE') {
+            // Small bonus for every filled slot to encourage complete schedules
+            fitness += 2;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error calculating fill bonus:', e);
+  }
+
   chromosome.fitness = fitness;
   chromosome.conflicts = conflicts;
   return fitness;

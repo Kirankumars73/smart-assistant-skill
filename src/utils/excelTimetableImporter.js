@@ -20,6 +20,7 @@ import * as XLSX from 'xlsx';
 export const parseExcelTimetable = (fileData) => {
   const workbook = XLSX.read(fileData, { type: 'array' });
   const errors = [];
+  let assignmentIdCounter = 0; // unique stable IDs within this import
 
   // Prefer "DepartmentData" sheet, fall back to first sheet
   const sheetName = workbook.SheetNames.includes('DepartmentData')
@@ -108,7 +109,7 @@ export const parseExcelTimetable = (fileData) => {
     facultyNames.forEach(name => facultySet.add(name));
 
     assignments.push({
-      id: Date.now() + Math.random(),
+      id: assignmentIdCounter++,
       className,
       subjectName: isLab && !subjectName.endsWith('*') ? subjectName + '*' : subjectName,
       facultyName: facultyNames[0],
