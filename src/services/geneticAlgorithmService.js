@@ -135,14 +135,21 @@ const assignSubjectRandom = (chromosome, assignment) => {
   const maxAttempts = Math.max(100, rows * cols * 3);
   let attempts = 0;
 
-  while (assigned < weeklyLimit && attempts < maxAttempts) {
-    attempts++;
+  if (isLab) {
+    // KEY FIX: weeklyLimit is HOURS. Convert to number of SESSIONS.
+    // e.g. weeklyLimit=6 hours, labLen=2 → 3 sessions (not 6).
+    const labLen = consecutivePeriods || 2;
+    const sessionTarget = Math.max(1, Math.round(weeklyLimit / labLen));
+    const usedDays = new Set(); // one lab session per day maximum
 
-    const day = Math.floor(Math.random() * rows);
-    const period = Math.floor(Math.random() * cols);
+    while (assigned < sessionTarget && attempts < maxAttempts) {
+      attempts++;
 
-    if (isLab) {
-      const labLen = consecutivePeriods || 2;
+      const day = Math.floor(Math.random() * rows);
+      const period = Math.floor(Math.random() * (cols - labLen + 1)); // ensure room for labLen
+
+      // Only one lab session per day
+      if (usedDays.has(day)) continue;
       if (period + labLen > cols) continue;
 
       // Check ALL consecutive slots are free for primary faculty, class, AND co-teachers
@@ -153,7 +160,6 @@ const assignSubjectRandom = (chromosome, assignment) => {
           canAssign = false;
           break;
         }
-        // Check additional co-teachers
         for (const af of additionalFaculties) {
           if (chromosome.genes.faculty[af] && chromosome.genes.faculty[af][day][p] !== 'FREE') {
             canAssign = false;
@@ -164,12 +170,12 @@ const assignSubjectRandom = (chromosome, assignment) => {
       }
 
       if (canAssign) {
+        usedDays.add(day);
         for (let p = period; p < period + labLen; p++) {
           chromosome.genes.faculty[facultyName][day][p] = className;
           chromosome.genes.class[className][day][p] = subjectName.endsWith('*')
             ? subjectName
             : subjectName + '*';
-          // Co-teachers get the same slot in their faculty grid
           for (const af of additionalFaculties) {
             if (chromosome.genes.faculty[af]) {
               chromosome.genes.faculty[af][day][p] = className;
@@ -178,7 +184,15 @@ const assignSubjectRandom = (chromosome, assignment) => {
         }
         assigned++;
       }
-    } else {
+    }
+    return assigned >= sessionTarget;
+  } else {
+    // Theory subject: weeklyLimit = number of individual periods
+    while (assigned < weeklyLimit && attempts < maxAttempts) {
+      attempts++;
+      const day = Math.floor(Math.random() * rows);
+      const period = Math.floor(Math.random() * cols);
+
       // Check primary faculty AND class slot are free
       if (chromosome.genes.faculty[facultyName][day][period] === 'FREE' &&
           chromosome.genes.class[className][day][period] === 'FREE') {
@@ -190,7 +204,6 @@ const assignSubjectRandom = (chromosome, assignment) => {
 
         chromosome.genes.faculty[facultyName][day][period] = className;
         chromosome.genes.class[className][day][period] = subjectName;
-        // Co-teachers share the slot — only faculty grid written, not class grid again
         for (const af of additionalFaculties) {
           if (chromosome.genes.faculty[af]) {
             chromosome.genes.faculty[af][day][period] = className;
@@ -199,10 +212,10 @@ const assignSubjectRandom = (chromosome, assignment) => {
         assigned++;
       }
     }
+    return assigned >= weeklyLimit;
   }
-
-  return assigned >= weeklyLimit;
 };
+
 
 const applyManualAssignments = (chromosome, manualAssignments) => {
   if (!manualAssignments || manualAssignments.length === 0) return;
@@ -362,31 +375,7 @@ const evaluateFitness = (chromosome) => {
     console.error('Error checking lab continuity:', e);
   }
 
-  // --- UNASSIGNED_SUBJECT penalty: reward complete schedules ---
-  // Count how many periods each assignment actually has vs its weeklyLimit.
-  // This requires the assignments to be passed in — but evaluateFitness only receives
-  // a chromosome. We infer completeness from the class grid:
-  // for each (class, subject) pair, count non-FREE occurrences across all days/periods.
-  // A subject appearing fewer times than expected gets penalised proportionally.
-  // NOTE: We don't have weeklyLimit here, so we penalise any slot that is completely FREE
-  // while the faculty grid has a non-FREE entry (already checked above as CLASS_DOUBLE_BOOKING).
-  // Extra bonus: reward each non-FREE class slot (encourages filling the timetable).
-  try {
-    for (const className in chromosome.genes.class) {
-      const timetable = chromosome.genes.class[className];
-      for (let day = 0; day < rows; day++) {
-        for (let period = 0; period < cols; period++) {
-          const slot = timetable[day][period];
-          if (slot !== 'FREE') {
-            // Small bonus for every filled slot to encourage complete schedules
-            fitness += 2;
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.error('Error calculating fill bonus:', e);
-  }
+
 
   chromosome.fitness = fitness;
   chromosome.conflicts = conflicts;
@@ -459,10 +448,10 @@ const crossover = (parent1, parent2, crossoverRate) => {
               if (donorParent.genes.class[cls] && donorParent.genes.class[cls][day][p] !== 'FREE') {
                 offspring.genes.class[cls][day][p] = donorParent.genes.class[cls][day][p];
               } else {
-                // Fallback: copy from current offspring class grid (pre-clear value)
-                // Since we cleared it, mark it non-FREE to avoid phantom FREE inconsistency
-                // The fitness evaluator will penalise inconsistency if subject is missing
-                offspring.genes.class[cls][day][p] = cls; // placeholder — fitness will handle
+                // Donor parent doesn't have subject info for this slot — leave FREE.
+                // Better to have an empty slot than a corrupt subject name.
+                // The faculty grid still records the class booking; fitness will penalize the mismatch.
+                offspring.genes.class[cls][day][p] = 'FREE';
               }
             }
           }

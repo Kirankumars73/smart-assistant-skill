@@ -324,6 +324,11 @@ const findEmptyPositions = (facultyName, className, count, isLab) => {
   return shuffleArray(emptyPositions);
 };
 
+// Timeout sentinel for backtracking (reset before each run)
+const BACKTRACK_TIMEOUT_MS = 20000; // 20 seconds max
+let _backtrackStartTime = 0;
+let _backtrackTimedOut = false;
+
 /**
  * Recursive backtracking assignment
  */
@@ -332,12 +337,22 @@ const assignRecursive = (allData, index = 0) => {
   if (index >= allData.length) {
     return true;
   }
-  
+
+  // Time guard — bail gracefully if running too long (prevents browser freeze)
+  if (Date.now() - _backtrackStartTime > BACKTRACK_TIMEOUT_MS) {
+    _backtrackTimedOut = true;
+    return false;
+  }
+  if (_backtrackTimedOut) return false;
+
   const { facultyName, className, limit, subjectName, additionalFaculties = [] } = allData[index];
-  
-  // Try up to 5 times — findEmptyPositions shuffles positions internally,
-  // so each attempt gets a different slot ordering for better coverage.
-  for (let attempt = 0; attempt < 5; attempt++) {
+
+  // Try up to 3 times — findEmptyPositions shuffles positions each call,
+  // giving a different slot ordering per attempt. More than 3 has diminishing
+  // returns and significantly expands the backtracking search tree.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (_backtrackTimedOut) return false;
+
     const positions = findEmptyPositions(facultyName, className, limit, false);
 
     
@@ -437,8 +452,12 @@ const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
       let occurrence = 0;
       const taken = [];
       
+      // KEY FIX: limit is in HOURS/periods. For labs, we need NUMBER OF SESSIONS.
+      // e.g. weeklyLimit=6 hours, count=2 consecutive → 3 sessions (not 6).
+      const sessionCount = Math.max(1, Math.round(limit / count));
+      
       for (const { day, period } of shuffledPositions) {
-        if (occurrence >= limit) break;
+        if (occurrence >= sessionCount) break;
         
         // Only one lab session per day
         if (!taken.includes(day)) {
@@ -451,6 +470,7 @@ const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
           }
         }
       }
+
       
       // Some lab sessions couldn't be assigned - continue with what we have
       
