@@ -391,13 +391,14 @@ const crossover = (parent1, parent2, crossoverRate) => {
   const offspring2 = cloneChromosome(parent2);
 
   const rows = parent1.metadata.rows;
+  const cols = parent1.metadata.cols;
   const point1 = Math.floor(Math.random() * rows);
   const point2 = Math.floor(Math.random() * rows);
   const start = Math.min(point1, point2);
   const end = Math.max(point1, point2);
 
   try {
-    // Swap day-rows between start..end for faculty grids
+    // Step 1: Swap day-rows between start..end for faculty grids ONLY
     for (const faculty in offspring1.genes.faculty) {
       if (!offspring2.genes.faculty[faculty]) continue;
       for (let day = start; day <= end && day < rows; day++) {
@@ -407,15 +408,49 @@ const crossover = (parent1, parent2, crossoverRate) => {
       }
     }
 
-    // Swap same day-rows for class grids
-    for (const className in offspring1.genes.class) {
-      if (!offspring2.genes.class[className]) continue;
-      for (let day = start; day <= end && day < rows; day++) {
-        const tmp = offspring1.genes.class[className][day];
-        offspring1.genes.class[className][day] = offspring2.genes.class[className][day];
-        offspring2.genes.class[className][day] = tmp;
+    // Step 2: Rebuild class grids from the (now-updated) faculty grids.
+    // This guarantees faculty and class grids are always in sync — no orphaned entries.
+    // We need the parent class grids to know WHICH subject corresponds to each class-slot.
+    // Strategy: clear swapped day range in class grid, then re-fill from faculty grid.
+    // For the subject name we look it up from the parent whose faculty row we just took.
+
+    const rebuildClassGrid = (offspring, donorParent, affectedDays) => {
+      // Clear and rebuild only the affected day rows in the class grid
+      for (const className in offspring.genes.class) {
+        for (const day of affectedDays) {
+          offspring.genes.class[className][day] = new Array(cols).fill('FREE');
+        }
       }
-    }
+      // Re-populate from faculty grid: for each faculty slot that is non-FREE,
+      // look up the subject from the donor parent's class grid (since we took those rows from it)
+      for (const faculty in offspring.genes.faculty) {
+        for (const day of affectedDays) {
+          const row = offspring.genes.faculty[faculty][day];
+          for (let p = 0; p < cols; p++) {
+            const cls = row[p];
+            if (cls !== 'FREE' && offspring.genes.class[cls]) {
+              // The subject for this slot comes from the donor parent's class grid
+              if (donorParent.genes.class[cls] && donorParent.genes.class[cls][day][p] !== 'FREE') {
+                offspring.genes.class[cls][day][p] = donorParent.genes.class[cls][day][p];
+              } else {
+                // Fallback: copy from current offspring class grid (pre-clear value)
+                // Since we cleared it, mark it non-FREE to avoid phantom FREE inconsistency
+                // The fitness evaluator will penalise inconsistency if subject is missing
+                offspring.genes.class[cls][day][p] = cls; // placeholder — fitness will handle
+              }
+            }
+          }
+        }
+      }
+    };
+
+    const affectedDays = [];
+    for (let day = start; day <= end && day < rows; day++) affectedDays.push(day);
+
+    // offspring1 took its swapped rows FROM parent2; offspring2 took its swapped rows FROM parent1
+    rebuildClassGrid(offspring1, parent2, affectedDays);
+    rebuildClassGrid(offspring2, parent1, affectedDays);
+
   } catch (e) {
     console.error('Error during crossover:', e);
     return [cloneChromosome(parent1), cloneChromosome(parent2)];
@@ -423,6 +458,7 @@ const crossover = (parent1, parent2, crossoverRate) => {
 
   return [offspring1, offspring2];
 };
+
 
 // ==================== MUTATION ====================
 
@@ -433,7 +469,7 @@ const crossover = (parent1, parent2, crossoverRate) => {
  * then re-read class1 = faculty[day1][period1] — which now holds the NEW (swapped) value.
  * This caused the class timetable sync to update the wrong class.
  *
- * NEW: snapshot class1 and class2 before the swap.
+ * NEW: snapshot both class names before swapping, handle same-class and different-class cases correctly.
  */
 const swapMutation = (chromosome) => {
   const { rows, cols } = chromosome.metadata;
@@ -446,6 +482,9 @@ const swapMutation = (chromosome) => {
   const day2 = Math.floor(Math.random() * rows);
   const period2 = Math.floor(Math.random() * cols);
 
+  // Don't swap a slot with itself
+  if (day1 === day2 && period1 === period2) return;
+
   // Snapshot BEFORE swap
   const class1 = chromosome.genes.faculty[faculty][day1][period1];
   const class2 = chromosome.genes.faculty[faculty][day2][period2];
@@ -454,21 +493,44 @@ const swapMutation = (chromosome) => {
   chromosome.genes.faculty[faculty][day1][period1] = class2;
   chromosome.genes.faculty[faculty][day2][period2] = class1;
 
-  // Sync class timetables using the pre-swap snapshots
-  if (class1 !== 'FREE' && class1 && chromosome.genes.class[class1]) {
-    const subj1 = chromosome.genes.class[class1][day1][period1];
-    const subj2 = chromosome.genes.class[class1][day2][period2];
-    chromosome.genes.class[class1][day1][period1] = subj2;
-    chromosome.genes.class[class1][day2][period2] = subj1;
+  if (class1 === class2) {
+    // Same class (or both FREE) — just swap the subject entries in that class's grid too
+    if (class1 !== 'FREE' && class1 && chromosome.genes.class[class1]) {
+      const subj1 = chromosome.genes.class[class1][day1][period1];
+      const subj2 = chromosome.genes.class[class1][day2][period2];
+      chromosome.genes.class[class1][day1][period1] = subj2;
+      chromosome.genes.class[class1][day2][period2] = subj1;
+    }
+    return;
   }
 
-  if (class2 !== 'FREE' && class2 && class2 !== class1 && chromosome.genes.class[class2]) {
-    const subj1 = chromosome.genes.class[class2][day1][period1];
-    const subj2 = chromosome.genes.class[class2][day2][period2];
+  // Different classes: snapshot subjects, clear old positions, write to new positions.
+  // class1 was at (day1,p1) → should now be at (day2,p2)
+  // class2 was at (day2,p2) → should now be at (day1,p1)
+  const subj1 = (class1 !== 'FREE' && class1 && chromosome.genes.class[class1])
+    ? chromosome.genes.class[class1][day1][period1]
+    : null;
+  const subj2 = (class2 !== 'FREE' && class2 && chromosome.genes.class[class2])
+    ? chromosome.genes.class[class2][day2][period2]
+    : null;
+
+  // Clear old positions
+  if (class1 !== 'FREE' && class1 && chromosome.genes.class[class1]) {
+    chromosome.genes.class[class1][day1][period1] = 'FREE';
+  }
+  if (class2 !== 'FREE' && class2 && chromosome.genes.class[class2]) {
+    chromosome.genes.class[class2][day2][period2] = 'FREE';
+  }
+
+  // Write to new positions
+  if (class1 !== 'FREE' && class1 && chromosome.genes.class[class1] && subj1 !== null) {
+    chromosome.genes.class[class1][day2][period2] = subj1;
+  }
+  if (class2 !== 'FREE' && class2 && chromosome.genes.class[class2] && subj2 !== null) {
     chromosome.genes.class[class2][day1][period1] = subj2;
-    chromosome.genes.class[class2][day2][period2] = subj1;
   }
 };
+
 
 export const mutate = (chromosome, mutationRate) => {
   if (Math.random() > mutationRate) return;

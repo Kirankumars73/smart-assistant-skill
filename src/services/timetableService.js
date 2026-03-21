@@ -297,7 +297,8 @@ const findEmptyPositions = (facultyName, className, count, isLab) => {
     }
   } else {
     // For regular subjects, find random positions (max 2 per day)
-    // Also check to prevent consecutive different classes for teacher health
+    // SOFT constraint: prefer slots that don't create consecutive different classes,
+    // but fall back to any free slot if we can't find enough preferred slots.
     for (let i = 0; i < rows; i++) {
       let limitPerDay = 0;
       const randomIndices = shuffleArray([...Array(cols).keys()]);
@@ -312,8 +313,23 @@ const findEmptyPositions = (facultyName, className, count, isLab) => {
       }
     }
     
+    // If preferred positions are not enough, fall back to ALL free positions (ignore soft constraint)
     if (emptyPositions.length < count) {
-      return false;
+      const fallbackPositions = [];
+      for (let i = 0; i < rows; i++) {
+        let limitPerDay = 0;
+        const randomIndices = shuffleArray([...Array(cols).keys()]);
+        for (const j of randomIndices) {
+          if (limitPerDay < 2 && isSlotAvailable(facultyName, className, i, j)) {
+            fallbackPositions.push({ day: i, period: j });
+            limitPerDay++;
+          }
+        }
+      }
+      if (fallbackPositions.length < count) {
+        return false; // Genuinely no room at all
+      }
+      return shuffleArray(fallbackPositions);
     }
   }
   
@@ -347,11 +363,13 @@ const assignRecursive = (allData, index = 0) => {
     let successCount = 0;
     
     // Try to make all required assignments for this subject
+    // NOTE: soft consecutive-class check (teacher comfort) is already applied in
+    // findEmptyPositions as a preference. Do NOT re-check it here — doing so would
+    // reject fallback positions and prevent valid assignments from being placed.
     for (const { day, period } of positions) {
       if (successCount >= limit) break;
       
-      if (isSlotAvailable(facultyName, className, day, period) &&
-          isSafeFromConsecutiveDifferentClasses(facultyName, className, day, period, false)) {
+      if (isSlotAvailable(facultyName, className, day, period)) {
         // Check co-teachers' faculty grids are also free at this slot
         const coTeachersAvailable = additionalFaculties.every(
           af => facultyTimetable[af] && facultyTimetable[af][day][period] === 'FREE'
@@ -446,12 +464,14 @@ const autoAssign = (limit, count, faculties, className, subjectName, isLab) => {
       
       // Some lab sessions couldn't be assigned - continue with what we have
       
-      // Assign all positions to all faculties
+      // Assign all positions to all faculties.
+      // Primary faculty (index 0) writes the class grid; co-teachers skip it (isCoTeach=true)
       for (const { day, period } of assignedPositions) {
-        for (const facultyName of faculties) {
-          const result = manualAssign(facultyName, className, subjectName, day, period, true);
+        for (let fi = 0; fi < faculties.length; fi++) {
+          const result = manualAssign(faculties[fi], className, subjectName, day, period, true, fi > 0);
           if (!result) {
-            return false;
+            // Only abort if primary faculty fails; co-teacher failure is non-fatal
+            if (fi === 0) return false;
           }
         }
       }
