@@ -602,7 +602,15 @@ const TimetableGenerator = () => {
 
       } else {
         console.log('🔄 Using Backtracking Algorithm');
-        result = TimetableService.generateTimetable();
+        // Wire progress callback so the progress bar shows activity during backtracking
+        const onBacktrackProgress = (progress) => {
+          setGaProgress(prev => ({
+            ...prev,
+            generation: progress.assignedSoFar || 0,
+            isRunning: true
+          }));
+        };
+        result = await TimetableService.generateTimetable(onBacktrackProgress);
       }
 
       if (result.success) {
@@ -624,10 +632,13 @@ const TimetableGenerator = () => {
           console.log('✅ Timetable generated successfully with no conflicts');
         }
 
-        // Show appropriate toast: warning if violations exist, success otherwise
+        // Show appropriate toast: warning if violations / partial, success otherwise
         const algorithmName = algorithm === 'genetic' ? 'Genetic Algorithm' : 'Backtracking';
-        if (result.hasViolations) {
-          // Use showWarning so the user knows they may need to adjust a few slots
+        if (result.partial) {
+          // Backtracking timed out — partial result
+          showWarning(result.message || `Partial timetable generated — some subjects could not be placed. Consider reducing weekly hours or adding more periods.`);
+        } else if (result.hasViolations) {
+          // GA returned best-effort with violations
           showWarning(result.message || `Timetable generated (best effort) — some slots could not satisfy all constraints. Check the Conflicts panel.`);
         } else {
           const fitnessInfo = result.fitness ? ` (Fitness: ${result.fitness})` : '';

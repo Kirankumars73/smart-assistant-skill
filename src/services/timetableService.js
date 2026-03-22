@@ -328,11 +328,14 @@ const findEmptyPositions = (facultyName, className, count, isLab) => {
 const BACKTRACK_TIMEOUT_MS = 20000; // 20 seconds max
 let _backtrackStartTime = 0;
 let _backtrackTimedOut = false;
+const YIELD_EVERY_N_CALLS = 50; // Yield to browser every N recursive calls to keep UI responsive
+let _backtrackCallCount = 0;
+let _backtrackOnProgress = null; // Progress callback (optional)
 
 /**
- * Recursive backtracking assignment
+ * Recursive backtracking assignment — async to yield to browser periodically
  */
-const assignRecursive = (allData, index = 0) => {
+const assignRecursive = async (allData, index = 0) => {
   // Base case: all assignments done
   if (index >= allData.length) {
     return true;
@@ -345,7 +348,19 @@ const assignRecursive = (allData, index = 0) => {
   }
   if (_backtrackTimedOut) return false;
 
+  // Yield to browser every N calls so the loading screen can update
+  _backtrackCallCount++;
+  if (_backtrackCallCount % YIELD_EVERY_N_CALLS === 0) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+
   const { facultyName, className, limit, subjectName, additionalFaculties = [] } = allData[index];
+
+  // PLAN FIX #2 (backtracking): Cap positions tried per subject.
+  // Without a cap, findEmptyPositions can return up to rows*cols*2 = 60 candidates,
+  // making the branching factor 60^N which is infinite for N>5.
+  // Cap to min(positions.length, 2*limit) so exploration stays tractable.
+  const MAX_POSITIONS_PER_SUBJECT = 2 * limit;
 
   // Try up to 3 times — findEmptyPositions shuffles positions each call,
   // giving a different slot ordering per attempt. More than 3 has diminishing
@@ -353,20 +368,26 @@ const assignRecursive = (allData, index = 0) => {
   for (let attempt = 0; attempt < 3; attempt++) {
     if (_backtrackTimedOut) return false;
 
-    const positions = findEmptyPositions(facultyName, className, limit, false);
+    const rawPositions = findEmptyPositions(facultyName, className, limit, false);
 
-    
-    if (positions === false) {
+    if (rawPositions === false) {
       continue;
     }
-    
-    if (!positions || positions.length === 0) {
+
+    if (!rawPositions || rawPositions.length === 0) {
       continue;
     }
-    
+
+    // Cap branching factor
+    const positions = rawPositions.slice(0, MAX_POSITIONS_PER_SUBJECT);
+
     const assignmentsMade = [];
     let successCount = 0;
-    
+
+    // PLAN FIX #4 (backtracking): Report progress every 100 calls
+    if (_backtrackOnProgress && _backtrackCallCount % 100 === 0) {
+      _backtrackOnProgress({ assignedSoFar: index });
+    }
     // Try to make all required assignments for this subject
     // NOTE: soft consecutive-class check (teacher comfort) is already applied in
     // findEmptyPositions as a preference. Do NOT re-check it here — doing so would
@@ -397,7 +418,7 @@ const assignRecursive = (allData, index = 0) => {
     
     // If we made all needed assignments, try to solve the rest
     if (successCount === limit) {
-      if (assignRecursive(allData, index + 1)) {
+      if (await assignRecursive(allData, index + 1)) {
         return true;
       }
     }
@@ -604,29 +625,60 @@ export const resetTimetable = () => {
 };
 
 /**
- * Main timetable generation function
+ * Main timetable generation function — async so backtracking can yield to browser
+ * @param {Function} onProgress - Optional progress callback for backtracking path
  */
-export const generateTimetable = () => {
+export const generateTimetable = async (onProgress = null) => {
   try {
     // Step 1: Reset timetables
     resetTimetable();
-    
+
+    // Reset backtracking timeout sentinel and call counter
+    _backtrackStartTime = Date.now();
+    _backtrackTimedOut = false;
+    _backtrackCallCount = 0;
+    _backtrackOnProgress = onProgress;
+
     // Step 2: Apply manual assignments (highest priority)
     const allManualData = getAllManualData();
     for (const { facultyName, className, subjectName, day, time } of allManualData) {
       manualAssign(facultyName, className, subjectName, day, time, false);
     }
-    
+
     // Step 3: Apply lab assignments
     const allLabData = getAllLabData();
     for (const { limit, count, faculties, className, subjectName, isLab } of allLabData) {
       autoAssign(limit, count, faculties, className, subjectName, isLab);
     }
-    
-    // Step 4: Apply regular assignments using backtracking
+
+    // Step 4: Apply regular assignments using backtracking (async for UI responsiveness)
+    // PLAN FIX #1 (backtracking): Sort by MRV (Minimum Remaining Values) —
+    // subjects with the fewest possible placement options go first.
+    // Most-constrained first dramatically reduces the backtracking depth.
     const allFacultyData = getAllFacultyData();
     if (allFacultyData.length > 0) {
-      if (!assignRecursive(allFacultyData)) {
+      // MRV sort: count available positions for each assignment and sort ascending
+      const withCounts = allFacultyData.map(item => {
+        const positions = findEmptyPositions(item.facultyName, item.className, item.limit, false);
+        const count = Array.isArray(positions) ? positions.length : 0;
+        return { item, count };
+      });
+      withCounts.sort((a, b) => a.count - b.count);
+      const sortedFacultyData = withCounts.map(x => x.item);
+
+      const success = await assignRecursive(sortedFacultyData);
+
+      // PLAN FIX #3 (backtracking): On timeout, return partial result instead of failure
+      if (!success) {
+        if (_backtrackTimedOut) {
+          return {
+            success: true,
+            partial: true,
+            message: `Partial timetable — some subjects could not be placed within the time limit. Consider reducing weekly hours or adding more periods.`,
+            facultyTimetables: facultyTimetable,
+            classTimetables: classTimetable
+          };
+        }
         return {
           success: false,
           message: 'Could not complete timetable assignment. Please check constraints.',
@@ -705,14 +757,19 @@ const convertLabDataForGA = () => {
   return allLabData.map(({ limit, count, faculties, className, subjectName, isLab }) => ({
     facultyName: faculties[0],
     className,
-    // Ensure lab subjects always carry the '*' marker so the GA recognises them
+    // Lab subjects always carry the '*' marker; non-lab multi-faculty subjects do NOT
     subjectName: isLab && !subjectName.endsWith('*') ? subjectName + '*' : subjectName,
     weeklyLimit: limit,
-    isLab: true,
-    consecutivePeriods: count || 2,
+    // FIX: pass the ACTUAL isLab flag — do NOT hardcode true.
+    // Multi-faculty theory subjects (isLab=false) must be handled by displacementRepair,
+    // not labRepair. Hardcoding true caused them to be skipped by theory repair entirely.
+    isLab: !!isLab,
+    // Non-lab multi-faculty: consecutivePeriods should be 1, not 2
+    consecutivePeriods: isLab ? (count || 2) : 1,
     additionalFaculties: faculties.slice(1)
   }));
 };
+
 
 /**
  * Generate timetable using Genetic Algorithm
