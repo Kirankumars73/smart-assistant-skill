@@ -143,47 +143,65 @@ const assignSubjectRandom = (chromosome, assignment) => {
     const sessionTarget = Math.max(1, Math.round(weeklyLimit / labLen));
     const usedDays = new Set(); // one lab session per day maximum
 
-    while (assigned < sessionTarget && attempts < maxAttempts) {
-      attempts++;
+    // EDGE-ONLY: Labs must be at start or end of day.
+    // Build candidate edge start positions (deduplicate if cols == labLen).
+    const edgeStarts = [0];
+    if (cols - labLen > 0) edgeStarts.push(cols - labLen);
 
-      const day = Math.floor(Math.random() * rows);
-      const period = Math.floor(Math.random() * (cols - labLen + 1)); // ensure room for labLen
+    // Shuffle day order for diversity across chromosomes
+    const dayOrder = [];
+    for (let d = 0; d < rows; d++) dayOrder.push(d);
+    for (let i = dayOrder.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [dayOrder[i], dayOrder[j]] = [dayOrder[j], dayOrder[i]];
+    }
 
-      // Only one lab session per day
+    for (const day of dayOrder) {
+      if (assigned >= sessionTarget) break;
       if (usedDays.has(day)) continue;
-      if (period + labLen > cols) continue;
 
-      // Check ALL consecutive slots are free for primary faculty, class, AND co-teachers
-      let canAssign = true;
-      for (let p = period; p < period + labLen; p++) {
-        if (chromosome.genes.faculty[facultyName][day][p] !== 'FREE' ||
-            chromosome.genes.class[className][day][p] !== 'FREE') {
-          canAssign = false;
-          break;
-        }
-        for (const af of additionalFaculties) {
-          if (chromosome.genes.faculty[af] && chromosome.genes.faculty[af][day][p] !== 'FREE') {
+      // Shuffle edge positions so we don't always bias toward start-of-day
+      const starts = [...edgeStarts];
+      if (Math.random() < 0.5 && starts.length > 1) {
+        [starts[0], starts[1]] = [starts[1], starts[0]];
+      }
+
+      for (const period of starts) {
+        if (period + labLen > cols) continue;
+
+        // Check ALL consecutive slots are free for primary faculty, class, AND co-teachers
+        let canAssign = true;
+        for (let p = period; p < period + labLen; p++) {
+          if (chromosome.genes.faculty[facultyName][day][p] !== 'FREE' ||
+              chromosome.genes.class[className][day][p] !== 'FREE') {
             canAssign = false;
             break;
           }
-        }
-        if (!canAssign) break;
-      }
-
-      if (canAssign) {
-        usedDays.add(day);
-        for (let p = period; p < period + labLen; p++) {
-          chromosome.genes.faculty[facultyName][day][p] = className;
-          chromosome.genes.class[className][day][p] = subjectName.endsWith('*')
-            ? subjectName
-            : subjectName + '*';
           for (const af of additionalFaculties) {
-            if (chromosome.genes.faculty[af]) {
-              chromosome.genes.faculty[af][day][p] = className;
+            if (chromosome.genes.faculty[af] && chromosome.genes.faculty[af][day][p] !== 'FREE') {
+              canAssign = false;
+              break;
             }
           }
+          if (!canAssign) break;
         }
-        assigned++;
+
+        if (canAssign) {
+          usedDays.add(day);
+          for (let p = period; p < period + labLen; p++) {
+            chromosome.genes.faculty[facultyName][day][p] = className;
+            chromosome.genes.class[className][day][p] = subjectName.endsWith('*')
+              ? subjectName
+              : subjectName + '*';
+            for (const af of additionalFaculties) {
+              if (chromosome.genes.faculty[af]) {
+                chromosome.genes.faculty[af][day][p] = className;
+              }
+            }
+          }
+          assigned++;
+          break; // move to next day
+        }
       }
     }
     return assigned >= sessionTarget;
@@ -593,14 +611,21 @@ const labRepair = (chromosome, labAssignments) => {
 
     if (placed >= sessionTarget) continue; // Nothing to repair
 
-    // ── Step 2: Place missing sessions (direct free slots) ────────────────────
+    // ── Step 2: Place missing sessions (EDGE-ONLY: start or end of day) ────────
     const needed = sessionTarget - placed;
     let restored = 0;
+
+    // Only try edge positions: period 0 (start) and cols-labLen (end)
+    const edgeStartsRepair = [0];
+    if (cols - labLen > 0) edgeStartsRepair.push(cols - labLen);
 
     for (let d = 0; d < rows && restored < needed; d++) {
       if (daysUsed.has(d)) continue; // already one session on this day
 
-      for (let startP = 0; startP <= cols - labLen && restored < needed; startP++) {
+      for (const startP of edgeStartsRepair) {
+        if (restored >= needed) break;
+        if (startP + labLen > cols) continue;
+
         // Check ALL consecutive slots are FREE: class, primary faculty, co-teachers
         let canPlace = true;
         for (let p = startP; p < startP + labLen; p++) {
@@ -641,10 +666,17 @@ const labRepair = (chromosome, labAssignments) => {
     // If direct placement couldn't fill all sessions, try displacing theory
     // subjects from consecutive slots to make room for the lab.
     if (restored < needed) {
+      // EDGE-ONLY displacement: only try start and end of day
+      const edgeStartsDisplace = [0];
+      if (cols - labLen > 0) edgeStartsDisplace.push(cols - labLen);
+
       for (let d = 0; d < rows && restored < needed; d++) {
         if (daysUsed.has(d)) continue;
 
-        for (let startP = 0; startP <= cols - labLen && restored < needed; startP++) {
+        for (const startP of edgeStartsDisplace) {
+          if (restored >= needed) break;
+          if (startP + labLen > cols) continue;
+
           // Check: class grid must be FREE or theory (non-lab) for all labLen slots
           // Faculty grid can be anything — we'll try to displace/free it
           let classOk = true;
@@ -728,7 +760,7 @@ const labRepair = (chromosome, labAssignments) => {
                 chromosome.genes.faculty[s.faculty][s.toD][s.toP] = 'FREE';
               }
             }
-            continue; // try next startP
+            continue; // try next edge position
           }
 
           // All slots freed — place the lab

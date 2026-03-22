@@ -266,11 +266,17 @@ const findEmptyPositions = (facultyName, className, count, isLab) => {
   const emptyPositions = [];
   
   if (isLab) {
-    // For labs, slide a window of 'count' across every possible start position
+    // EDGE-ONLY: Labs must be at start or end of day.
+    // Only check period 0 (start) and cols-count (end).
+    const edgeStarts = [0];
+    if (cols - count > 0) edgeStarts.push(cols - count);
+
     for (let i = 0; i < rows; i++) {
-      // Avoid scheduling 3-hour labs in the last slot of Friday (day index 4)
-      const maxStart = (i === 4 && count >= 3) ? cols - count - 1 : cols - count;
-      for (let startPeriod = 0; startPeriod <= maxStart; startPeriod++) {
+      for (const startPeriod of edgeStarts) {
+        // Avoid scheduling 3-hour labs in the last slot of Friday (day index 4)
+        if (i === 4 && count >= 3 && startPeriod > cols - count - 1) continue;
+        if (startPeriod + count > cols) continue;
+
         let allFree = true;
         for (let k = 0; k < count; k++) {
           if (!isSlotAvailable(facultyName, className, i, startPeriod + k)) {
