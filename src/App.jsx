@@ -14,6 +14,7 @@ import AdminPanel from './pages/AdminPanel';
 import ParentDashboard from './pages/ParentDashboard';
 import NotificationsPage from './pages/NotificationsPage';
 import StudyMaterialGenerator from './pages/StudyMaterialGenerator';
+import NotFoundPage from './pages/NotFoundPage';
 import ChatbotWidget from './components/chatbot/ChatbotWidget';
 import './index.css';
 
@@ -109,8 +110,8 @@ function AppContent() {
           }
         />
 
-        {/* Catch-all redirect */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* 404 catch-all */}
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
 
       {/* Chatbot widget (only visible to authenticated users) */}
