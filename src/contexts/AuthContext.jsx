@@ -1,7 +1,6 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { 
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut as firebaseSignOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -86,15 +85,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Sign in with Google (Gmail only) — uses redirect to avoid popup-blocker issues
+  // Sign in with Google (Gmail only) — uses popup (redirect breaks due to Spline's SES lockdown)
   const signInWithGoogle = async () => {
     try {
       setError(null);
-      await signInWithRedirect(auth, googleProvider);
-      // Page will navigate away to Google — execution stops here
+      const result = await signInWithPopup(auth, googleProvider);
+      // Enforce Gmail-only rule
+      if (result?.user && !isGmailAccount(result.user.email)) {
+        await firebaseSignOut(auth);
+        setError('Only Gmail accounts are allowed. Please sign in with a @gmail.com email.');
+        throw new Error('Only Gmail accounts are allowed.');
+      }
     } catch (error) {
       console.error('Sign in error:', error);
-      setError(error.message);
+      // Don't overwrite a more specific error message we already set
+      if (!error.message?.includes('Gmail')) {
+        setError(error.message);
+      }
       throw error;
     }
   };
@@ -144,26 +151,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Handle the result when Google redirects back to the app
-  useEffect(() => {
-    const handleRedirectResult = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result?.user) {
-          // Enforce Gmail-only rule on redirect return
-          if (!isGmailAccount(result.user.email)) {
-            await firebaseSignOut(auth);
-            setError('Only Gmail accounts are allowed. Please sign in with a @gmail.com email.');
-          }
-          // Profile creation & role fetching handled by onAuthStateChanged below
-        }
-      } catch (err) {
-        console.error('Redirect sign-in error:', err);
-        setError(err.message);
-      }
-    };
-    handleRedirectResult();
-  }, []);
+  // Note: redirect result handler removed — using signInWithPopup instead
+  // (Spline's SES lockdown-install.js breaks getRedirectResult by stripping eval())
 
   // Listen for auth state changes (fires on page load and after redirect)
   useEffect(() => {

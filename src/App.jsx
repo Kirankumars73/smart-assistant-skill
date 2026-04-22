@@ -19,7 +19,16 @@ import ChatbotWidget from './components/chatbot/ChatbotWidget';
 import './index.css';
 
 function AppContent() {
-  const { currentUser } = useAuth();
+  const { currentUser, loading } = useAuth();
+
+  // Wait for Firebase auth to resolve (handles redirect result coming back)
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-black">
+        <div className="w-16 h-16 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="App">
