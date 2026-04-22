@@ -31,10 +31,12 @@ export const db = initializeFirestore(app, {
 
 export const functions = getFunctions(app);
 
-// Configure Google Auth Provider for Gmail-only authentication
+// Configure Google Auth Provider
+// Note: Gmail-only enforcement is handled in AuthContext via isGmailAccount()
+// hd:'gmail.com' is NOT used — it is for Google Workspace domains, not consumer Gmail,
+// and causes silent failures with signInWithRedirect.
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
-  hd: 'gmail.com', // Restrict to gmail.com domain
   prompt: 'select_account'
 });
 

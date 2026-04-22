@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
-import { SplineScene } from '../ui/SplineScene';
 import { DotShaderBackground } from '../ui/DotShaderBackground';
+
+// Lazy-load Spline AFTER auth resolves — Spline's lockdown-install.js kills global eval()
+// which blocks Firebase's getRedirectResult. Lazy loading defers that conflict.
+const SplineScene = lazy(() =>
+  import('../ui/SplineScene').then(mod => ({ default: mod.SplineScene }))
+);
 
 const LoginPage = () => {
   const { signInWithGoogle, error } = useAuth();
@@ -86,13 +91,15 @@ const LoginPage = () => {
           </motion.div>
         </div>
 
-        {/* Right Content - 3D Robot */}
+        {/* Right Content - 3D Robot (lazy loaded AFTER Firebase auth to avoid SES/eval conflict) */}
         <div className="flex-1 md:w-3/5 relative hidden md:block">
           <div className="w-full h-full">
-            <SplineScene 
-              scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-              className="w-full h-full"
-            />
+            <Suspense fallback={<div className="w-full h-full bg-[#0a0a0a]" />}>
+              <SplineScene 
+                scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
+                className="w-full h-full"
+              />
+            </Suspense>
           </div>
         </div>
       </div>
