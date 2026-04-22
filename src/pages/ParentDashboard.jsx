@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import { getLinkedStudentData, hasLinkedStudent } from '../utils/parentHelpers';
 import { getInternalMarks } from '../utils/subjectHelpers';
+import { predictPassFailDetailed, isAtRisk } from '../services/studentPredictionService';
 import { getBacklogStatusColor, getBacklogStatusText } from '../utils/backlogHelpers';
 import Navbar from '../components/layout/Navbar';
 import Card from '../components/ui/Card';
@@ -64,24 +65,10 @@ function ParentDashboard() {
     // This will reload student data and hide onboarding
   };
 
-  // Pass/Fail Prediction Algorithm (same as StudentRecords)
-  const predictPassFail = (studentData) => {
-    const cgpa = parseFloat(studentData.cgpa) || 0;
-    const backPapers = parseInt(studentData.backPapers) || 0;
-    const internalMarks = getInternalMarks(studentData);
-
-    if (cgpa < 5.5 || backPapers > 2 || internalMarks < 40) {
-      return { status: 'Fail', color: 'red', icon: '❌' };
-    }
-    return { status: 'Pass', color: 'green', icon: '✅' };
-  };
-
+  // Pass/Fail Prediction — imported from shared service:
+  //   predictPassFailDetailed(student) and isAtRisk(student)
   const getAtRiskStatus = (studentData) => {
-    const cgpa = parseFloat(studentData.cgpa) || 0;
-    const backPapers = parseInt(studentData.backPapers) || 0;
-    const internalMarks = getInternalMarks(studentData);
-
-    if (cgpa < 6.0 || backPapers > 0 || internalMarks < 50) {
+    if (isAtRisk(studentData)) {
       return { atRisk: true, color: 'yellow', icon: '⚠️', message: 'Needs Attention' };
     }
     return { atRisk: false, color: 'green', icon: '✅', message: 'On Track' };
@@ -141,7 +128,7 @@ function ParentDashboard() {
     return null;
   }
 
-  const prediction = predictPassFail(student);
+  const prediction = predictPassFailDetailed(student);
   const riskStatus = getAtRiskStatus(student);
   const avgInternalMarks = getInternalMarks(student);
 

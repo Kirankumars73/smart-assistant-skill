@@ -12,6 +12,7 @@ import SubjectInputList from '../components/forms/SubjectInputList';
 import BacklogPaperManager from '../components/forms/BacklogPaperManager';
 import { getInternalMarks, createEmptySubject, validateSubjects } from '../utils/subjectHelpers';
 import { getBacklogCount, createEmptyBacklogPaper } from '../utils/backlogHelpers';
+import { predictPassFail, isAtRisk, computeAndStorePrediction } from '../services/studentPredictionService';
 import { useToast } from '../hooks/useToast';
 import { useConfirm } from '../hooks/useConfirm';
 import { getErrorMessage, getSuccessMessage } from '../utils/errorMessages';
@@ -97,26 +98,8 @@ const StudentRecords = () => {
     }
   };
 
-  // Pass/Fail Prediction Algorithm
-  const predictPassFail = (student) => {
-    const cgpa = parseFloat(student.cgpa) || 0;
-    const backPapers = parseInt(student.backPapers) || 0;
-    const internalMarks = getInternalMarks(student);  // Use helper for backward compatibility
-
-    // Algorithm: Fail if CGPA < 5.5 OR backPapers > 2 OR internal marks < 40%
-    if (cgpa < 5.5 || backPapers > 2 || internalMarks < 40) {
-      return 'Fail';
-    }
-    return 'Pass';
-  };
-
-  const isAtRisk = (student) => {
-    const cgpa = parseFloat(student.cgpa) || 0;
-    const backPapers = parseInt(student.backPapers) || 0;
-    const internalMarks = getInternalMarks(student);  // Use helper for backward compatibility
-    
-    return cgpa < 6.0 || backPapers > 0 || internalMarks < 50;
-  };
+  // Pass/Fail Prediction Algorithm — imported from shared service:
+  //   predictPassFail(student) and isAtRisk(student)
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -135,34 +118,57 @@ const StudentRecords = () => {
 
     try {
       // Calculate backPapers count from backlogPapers array
-      const backlogCount = formData.backlogPapers.length;
+      // FIX: Only auto-calculate if backlogPapers array is non-empty;
+      // otherwise preserve the manually-entered backPapers value (for legacy data)
+      const backlogCount = formData.backlogPapers.length > 0
+        ? formData.backlogPapers.length
+        : (parseInt(formData.backPapers) || 0);
       
-      const studentData = {
+      let studentData = {
         ...formData,
         cgpa: parseFloat(formData.cgpa),
-        backPapers: backlogCount,  // Auto-calculated from array
-        backlogPapers: formData.backlogPapers,  // NEW: Save backlog papers array
+        backPapers: backlogCount,
+        backlogPapers: formData.backlogPapers,
         internalMarks: parseFloat(formData.internalMarks),  // Keep for backward compatibility
         semester: parseInt(formData.semester),
-        subjects: formData.subjects,  // Save subjects array
+        subjects: formData.subjects,
         updatedAt: new Date().toISOString()
       };
 
+      // Compute and store prediction in Firestore
+      studentData = computeAndStorePrediction(studentData);
+
       if (editingStudent) {
+        // Check if prediction changed after edit
+        const oldPrediction = predictPassFail(editingStudent);
+        const newPrediction = studentData.prediction;
+
         // Update existing student
         const studentRef = doc(db, 'students', editingStudent.id);
         await updateDoc(studentRef, studentData);
+
+        // Show toast notification if prediction changed
+        if (oldPrediction !== newPrediction) {
+          if (newPrediction === 'Fail') {
+            toast.showError(`⚠️ ${formData.name}'s status changed: Pass → Fail`);
+          } else {
+            toast.showSuccess(`✅ ${formData.name}'s status changed: Fail → Pass`);
+          }
+        } else {
+          toast.showSuccess('Student updated successfully');
+        }
       } else {
         // Add new student
         studentData.createdAt = new Date().toISOString();
         await addDoc(collection(db, 'students'), studentData);
+        toast.showSuccess(`Student added — Prediction: ${studentData.prediction}`);
       }
 
       fetchStudents();
       closeModal();
     } catch (error) {
       console.error('Error saving student:', error);
-      alert('Failed to save student. Check console for details.');
+      toast.showError('Failed to save student. Check console for details.');
     }
   };
 
@@ -643,7 +649,7 @@ const StudentRecords = () => {
           const { _rowNumber, ...studentData } = student;
           
           // Parse numeric fields with defaults
-          const processedData = {
+          const processedData = computeAndStorePrediction({
             name: studentData.name || '',
             rollNumber: studentData.rollNumber || '',
             studentId: studentData.studentId || '',
@@ -663,7 +669,7 @@ const StudentRecords = () => {
             attendance: studentData.attendance ? parseFloat(studentData.attendance) : 0,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
-          };
+          });
 
           const docRef = doc(collection(db, 'students'));
           batch.set(docRef, processedData);
@@ -746,10 +752,19 @@ const StudentRecords = () => {
               }
             }
             
-            // Update student with new marks
+            // Re-compute prediction with updated marks
+            const updatedStudent = {
+              ...existingStudent,
+              subjects: updatedSubjects
+            };
+            const newPrediction = computeAndStorePrediction(updatedStudent);
+
+            // Update student with new marks and re-evaluated prediction
             const studentRef = doc(db, 'students', studentDoc.id);
             await updateDoc(studentRef, {
               subjects: updatedSubjects,
+              prediction: newPrediction.prediction,
+              predictionUpdatedAt: newPrediction.predictionUpdatedAt,
               updatedAt: new Date().toISOString()
             });
             

@@ -1,6 +1,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { 
-  signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -85,23 +86,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Sign in with Google (Gmail only)
+  // Sign in with Google (Gmail only) — uses redirect to avoid popup-blocker issues
   const signInWithGoogle = async () => {
     try {
       setError(null);
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-
-      // Verify Gmail account
-      if (!isGmailAccount(user.email)) {
-        await firebaseSignOut(auth);
-        throw new Error('Only Gmail accounts are allowed. Please sign in with a @gmail.com email.');
-      }
-
-      // Create/update user profile
-      await createUserProfile(user);
-      
-      return result;
+      await signInWithRedirect(auth, googleProvider);
+      // Page will navigate away to Google — execution stops here
     } catch (error) {
       console.error('Sign in error:', error);
       setError(error.message);
@@ -154,6 +144,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Handle the result when Google redirects back to the app
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          // Enforce Gmail-only rule on redirect return
+          if (!isGmailAccount(result.user.email)) {
+            await firebaseSignOut(auth);
+            setError('Only Gmail accounts are allowed. Please sign in with a @gmail.com email.');
+          }
+          // Profile creation & role fetching handled by onAuthStateChanged below
+        }
+      } catch (err) {
+        console.error('Redirect sign-in error:', err);
+        setError(err.message);
+      }
+    };
+    handleRedirectResult();
+  }, []);
+
+  // Listen for auth state changes (fires on page load and after redirect)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && isGmailAccount(user.email)) {

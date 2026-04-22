@@ -14,6 +14,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner';
 import NoiseTexture from '../components/ui/NoiseTexture';
 import FloatingOrbs from '../components/ui/FloatingOrbs';
 import { getInternalMarks } from '../utils/subjectHelpers';
+import { predictPassFail } from '../services/studentPredictionService';
 import { getBacklogStatusColor, getBacklogStatusText, canRequestClearance } from '../utils/backlogHelpers';
 import { createClearanceNotification, hasPendingClearanceRequest } from '../services/notificationService';
 import { useToast } from '../hooks/useToast';
@@ -156,17 +157,8 @@ const Dashboard = () => {
     }
   };
 
-  // Prediction function
-  const predictPassFail = (student) => {
-    const cgpa = parseFloat(student.cgpa) || 0;
-    const backPapers = parseInt(student.backPapers) || 0;
-    const internalMarks = getInternalMarks(student);  // Use helper for backward compatibility
-
-    if (cgpa < 5.5 || backPapers > 2 || internalMarks < 40) {
-      return 'Fail';
-    }
-    return 'Pass';
-  };
+  // Prediction function — imported from shared service:
+  //   predictPassFail(student)
 
   const adminServices = [
     { title: 'Timetable Generator', description: 'Create automated schedules', Icon: Calendar, path: '/timetable', color: 'from-glow-cyan to-glow-blue' },
