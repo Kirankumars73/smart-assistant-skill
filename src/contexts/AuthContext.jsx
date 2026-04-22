@@ -1,6 +1,8 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { 
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -20,7 +22,7 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
   const [userRole, setUserRole] = useState(null);
-  const [userProfile, setUserProfile] = useState(null); // NEW: Full user profile from Firestore
+  const [userProfile, setUserProfile] = useState(null); // Full user profile from Firestore
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -62,7 +64,7 @@ export const AuthProvider = ({ children }) => {
           displayName: user.displayName || '',
           photoURL: user.photoURL || '',
           role: finalRole,
-          isHardcodedAdmin: isHardcodedAdmin, // Mark hardcoded admin
+          isHardcodedAdmin: isHardcodedAdmin,
           createdAt: new Date().toISOString(),
           lastLogin: new Date().toISOString()
         });
@@ -85,7 +87,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Sign in with Google (Gmail only) — uses popup (redirect breaks due to Spline's SES lockdown)
+  // Sign in with Google (Gmail only)
+  // Strategy: try popup first → if browser blocks it, fall back to redirect
   const signInWithGoogle = async () => {
     try {
       setError(null);
@@ -97,8 +100,21 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Only Gmail accounts are allowed.');
       }
     } catch (error) {
+      // If popup was blocked, fall back to redirect flow
+      if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
+        console.log('Popup blocked — falling back to redirect sign-in');
+        setError(null);
+        try {
+          await signInWithRedirect(auth, googleProvider);
+          // Page navigates away — execution stops here
+        } catch (redirectError) {
+          console.error('Redirect sign-in error:', redirectError);
+          setError(redirectError.message);
+          throw redirectError;
+        }
+        return; // don't re-throw the popup-blocked error
+      }
       console.error('Sign in error:', error);
-      // Don't overwrite a more specific error message we already set
       if (!error.message?.includes('Gmail')) {
         setError(error.message);
       }
@@ -151,10 +167,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Note: redirect result handler removed — using signInWithPopup instead
-  // (Spline's SES lockdown-install.js breaks getRedirectResult by stripping eval())
+  // Handle redirect result (fires when user returns from Google after redirect fallback)
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          // Enforce Gmail-only rule on redirect return
+          if (!isGmailAccount(result.user.email)) {
+            await firebaseSignOut(auth);
+            setError('Only Gmail accounts are allowed. Please sign in with a @gmail.com email.');
+          }
+          // Profile creation & role fetching handled by onAuthStateChanged below
+        }
+      } catch (err) {
+        console.error('Redirect sign-in error:', err);
+        setError(err.message);
+      }
+    };
+    handleRedirectResult();
+  }, []);
 
-  // Listen for auth state changes (fires on page load and after redirect)
+  // Listen for auth state changes (fires on page load and after popup/redirect)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && isGmailAccount(user.email)) {
@@ -202,7 +236,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     currentUser,
     userRole,
-    userProfile,  // NEW: Expose full user profile
+    userProfile,
     loading,
     error,
     signInWithGoogle,
@@ -211,9 +245,9 @@ export const AuthProvider = ({ children }) => {
     isAdmin,
     isFaculty,
     isStudent,
-    isParent,  // NEW
+    isParent,
     hasFacultyAccess,
-    refreshUserProfile  // NEW: Refresh user profile from Firestore
+    refreshUserProfile
   };
 
   return (
