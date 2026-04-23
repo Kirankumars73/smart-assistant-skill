@@ -1,8 +1,6 @@
-import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
+import React, { createContext, useState, useEffect, useContext } from 'react';
 import { 
   signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -26,19 +24,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // ── Gate: both redirect-result AND first onAuthStateChanged must resolve ──
-  // This prevents the race condition where onAuthStateChanged fires with null
-  // before getRedirectResult has had a chance to deliver the user from a
-  // redirect-based sign-in, which would flash the login page.
-  const redirectChecked = useRef(false);
-  const authStateReady  = useRef(false);
 
-  // Helper: only clear `loading` once BOTH gates have opened
-  const tryFinishLoading = () => {
-    if (redirectChecked.current && authStateReady.current) {
-      setLoading(false);
-    }
-  };
 
   // Fetch user role and profile from Firestore
   const fetchUserRole = async (user) => {
@@ -102,7 +88,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Sign in with Google (Gmail only)
-  // Strategy: try popup first → if browser blocks it, fall back to redirect
+  // Popup-only strategy — redirect flow is broken in modern Chrome due to
+  // third-party cookie partitioning between firebaseapp.com and vercel.app.
   const signInWithGoogle = async () => {
     try {
       setError(null);
@@ -114,19 +101,17 @@ export const AuthProvider = ({ children }) => {
         throw new Error('Only Gmail accounts are allowed.');
       }
     } catch (error) {
-      // If popup was blocked, fall back to redirect flow
       if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
-        console.log('Popup blocked — falling back to redirect sign-in');
-        setError(null);
-        try {
-          await signInWithRedirect(auth, googleProvider);
-          // Page navigates away — execution stops here
-        } catch (redirectError) {
-          console.error('Redirect sign-in error:', redirectError);
-          setError(redirectError.message);
-          throw redirectError;
-        }
-        return; // don't re-throw the popup-blocked error
+        console.warn('Popup blocked by browser:', error.code);
+        setError(
+          'Pop-up was blocked by your browser. Please allow pop-ups for this site:\n' +
+          'Chrome → click the 🔒 icon in the address bar → Site settings → Pop-ups → Allow'
+        );
+        return;
+      }
+      // User closed the popup themselves — not an error
+      if (error.code === 'auth/popup-closed-by-user') {
+        return;
       }
       console.error('Sign in error:', error);
       if (!error.message?.includes('Gmail')) {
@@ -181,39 +166,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ── GATE 1: Handle redirect result ──
-  // Must resolve BEFORE we let loading → false, because
-  // onAuthStateChanged may fire with null before this completes.
-  useEffect(() => {
-    const handleRedirectResult = async () => {
-      try {
-        const result = await getRedirectResult(auth);
-        if (result?.user) {
-          console.log('[Auth] Redirect sign-in detected for:', result.user.email);
-          // Enforce Gmail-only rule on redirect return
-          if (!isGmailAccount(result.user.email)) {
-            await firebaseSignOut(auth);
-            setError('Only Gmail accounts are allowed. Please sign in with a @gmail.com email.');
-          }
-          // Profile creation & role fetching handled by onAuthStateChanged below
-        }
-      } catch (err) {
-        console.error('Redirect sign-in error:', err);
-        setError(err.message);
-      } finally {
-        // Mark redirect check as done — even if there was no redirect
-        redirectChecked.current = true;
-        tryFinishLoading();
-      }
-    };
-    handleRedirectResult();
-  }, []);
-
-  // ── GATE 2: Listen for auth state changes ──
-  // Fires on page load and after popup/redirect.
-  // On redirect returns, onAuthStateChanged may fire with null first (before
-  // getRedirectResult resolves), so we must NOT set loading=false until
-  // redirectChecked is also true.
+  // Listen for auth state changes (popup-only — no redirect to wait for)
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && isGmailAccount(user.email)) {
@@ -226,6 +179,7 @@ export const AuthProvider = ({ children }) => {
         // If this is the hardcoded admin, set role immediately
         if (isHardcodedAdmin) {
           setUserRole('admin');
+          setLoading(false);
           // Create/update profile in background (non-blocking)
           createUserProfile(user).catch(err =>
             console.error('Error creating user profile:', err)
@@ -240,16 +194,15 @@ export const AuthProvider = ({ children }) => {
           } catch (err) {
             console.error('Error fetching user role:', err);
             setUserRole(USER_ROLES.STUDENT); // Fallback
+          } finally {
+            setLoading(false);
           }
         }
       } else {
         setCurrentUser(null);
         setUserRole(null);
+        setLoading(false);
       }
-
-      // Mark auth-state as ready
-      authStateReady.current = true;
-      tryFinishLoading();
     });
 
     return unsubscribe;
