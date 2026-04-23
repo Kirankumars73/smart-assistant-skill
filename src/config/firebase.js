@@ -6,9 +6,17 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { initializeFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 
+// In production, use the hosting domain as authDomain so that the redirect
+// sign-in flow stays same-origin (proxied via vercel.json /__/auth rewrite).
+// This prevents Chrome's third-party cookie partitioning from breaking
+// signInWithRedirect.  In development, use the standard Firebase authDomain.
+const authDomain = import.meta.env.PROD
+  ? window.location.hostname          // e.g. smart-assistant-skill.vercel.app
+  : import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;  // e.g. skill-aef7f.firebaseapp.com
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  authDomain,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,

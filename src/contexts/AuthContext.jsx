@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useRef } from 'react';
 import { 
   signInWithPopup,
   signInWithRedirect,
@@ -25,6 +25,20 @@ export const AuthProvider = ({ children }) => {
   const [userProfile, setUserProfile] = useState(null); // Full user profile from Firestore
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // ── Gate: both redirect-result AND first onAuthStateChanged must resolve ──
+  // This prevents the race condition where onAuthStateChanged fires with null
+  // before getRedirectResult has had a chance to deliver the user from a
+  // redirect-based sign-in, which would flash the login page.
+  const redirectChecked = useRef(false);
+  const authStateReady  = useRef(false);
+
+  // Helper: only clear `loading` once BOTH gates have opened
+  const tryFinishLoading = () => {
+    if (redirectChecked.current && authStateReady.current) {
+      setLoading(false);
+    }
+  };
 
   // Fetch user role and profile from Firestore
   const fetchUserRole = async (user) => {
@@ -167,12 +181,15 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Handle redirect result (fires when user returns from Google after redirect fallback)
+  // ── GATE 1: Handle redirect result ──
+  // Must resolve BEFORE we let loading → false, because
+  // onAuthStateChanged may fire with null before this completes.
   useEffect(() => {
     const handleRedirectResult = async () => {
       try {
         const result = await getRedirectResult(auth);
         if (result?.user) {
+          console.log('[Auth] Redirect sign-in detected for:', result.user.email);
           // Enforce Gmail-only rule on redirect return
           if (!isGmailAccount(result.user.email)) {
             await firebaseSignOut(auth);
@@ -183,14 +200,22 @@ export const AuthProvider = ({ children }) => {
       } catch (err) {
         console.error('Redirect sign-in error:', err);
         setError(err.message);
+      } finally {
+        // Mark redirect check as done — even if there was no redirect
+        redirectChecked.current = true;
+        tryFinishLoading();
       }
     };
     handleRedirectResult();
   }, []);
 
-  // Listen for auth state changes (fires on page load and after popup/redirect)
+  // ── GATE 2: Listen for auth state changes ──
+  // Fires on page load and after popup/redirect.
+  // On redirect returns, onAuthStateChanged may fire with null first (before
+  // getRedirectResult resolves), so we must NOT set loading=false until
+  // redirectChecked is also true.
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user && isGmailAccount(user.email)) {
         setCurrentUser(user);
         
@@ -201,32 +226,30 @@ export const AuthProvider = ({ children }) => {
         // If this is the hardcoded admin, set role immediately
         if (isHardcodedAdmin) {
           setUserRole('admin');
-          setLoading(false); // role known immediately
           // Create/update profile in background (non-blocking)
           createUserProfile(user).catch(err =>
             console.error('Error creating user profile:', err)
           );
         } else {
-          // For non-admin users, keep loading=true until role is fetched
-          // to prevent flashing the wrong dashboard/redirect.
-          createUserProfile(user)
-            .then(() => fetchUserRole(user))
-            .then(role => {
-              console.log('User role fetched:', role);
-              setUserRole(role);
-              setLoading(false); // only unblock UI after role is confirmed
-            })
-            .catch(err => {
-              console.error('Error fetching user role:', err);
-              setUserRole(USER_ROLES.STUDENT); // Fallback
-              setLoading(false);
-            });
+          // For non-admin users, fetch role before unblocking UI
+          try {
+            await createUserProfile(user);
+            const role = await fetchUserRole(user);
+            console.log('[Auth] User role fetched:', role);
+            setUserRole(role);
+          } catch (err) {
+            console.error('Error fetching user role:', err);
+            setUserRole(USER_ROLES.STUDENT); // Fallback
+          }
         }
       } else {
         setCurrentUser(null);
         setUserRole(null);
-        setLoading(false);
       }
+
+      // Mark auth-state as ready
+      authStateReady.current = true;
+      tryFinishLoading();
     });
 
     return unsubscribe;
