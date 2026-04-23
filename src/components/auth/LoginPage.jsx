@@ -1,4 +1,4 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { DotShaderBackground } from '../ui/DotShaderBackground';
@@ -8,10 +8,83 @@ const SplineScene = lazy(() =>
   import('../ui/SplineScene').then(mod => ({ default: mod.SplineScene }))
 );
 
+// Google OAuth Client ID (from Firebase project)
+const GOOGLE_CLIENT_ID = '292806544658-8umcn4fi8jhnk4c3i70pcqs8l8kkhi29.apps.googleusercontent.com';
+
 const LoginPage = () => {
-  const { signInWithGoogle, error } = useAuth();
+  const { signInWithGoogle, signInWithGoogleCredential, error } = useAuth();
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
+  const [showGsiButton, setShowGsiButton] = useState(false);
+  const gsiButtonRef = useRef(null);
+  const gsiInitialized = useRef(false);
+
+  // Initialize Google Identity Services button as fallback
+  const initGsi = useCallback(() => {
+    if (gsiInitialized.current || !window.google?.accounts?.id) return;
+    
+    try {
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async (response) => {
+          try {
+            setLoading(true);
+            setLocalError('');
+            await signInWithGoogleCredential(response.credential);
+          } catch (err) {
+            setLocalError(err.message || 'Failed to sign in.');
+          } finally {
+            setLoading(false);
+          }
+        },
+        auto_select: false,
+        context: 'signin',
+      });
+
+      if (gsiButtonRef.current) {
+        window.google.accounts.id.renderButton(gsiButtonRef.current, {
+          theme: 'filled_black',
+          size: 'large',
+          width: 400,
+          shape: 'rectangular',
+          text: 'continue_with',
+        });
+      }
+      gsiInitialized.current = true;
+    } catch (err) {
+      console.error('GIS initialization error:', err);
+    }
+  }, [signInWithGoogleCredential]);
+
+  // When popup is blocked, show the GIS button
+  useEffect(() => {
+    if (error === 'POPUP_BLOCKED') {
+      setShowGsiButton(true);
+    }
+  }, [error]);
+
+  // Initialize GIS when the fallback button container appears
+  useEffect(() => {
+    if (showGsiButton) {
+      // Small delay to ensure the DOM ref is available and GIS script is loaded
+      const timer = setTimeout(() => {
+        if (window.google?.accounts?.id) {
+          initGsi();
+        } else {
+          // GIS script might still be loading — poll for it
+          const interval = setInterval(() => {
+            if (window.google?.accounts?.id) {
+              initGsi();
+              clearInterval(interval);
+            }
+          }, 200);
+          // Clean up after 5 seconds
+          setTimeout(() => clearInterval(interval), 5000);
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [showGsiButton, initGsi]);
 
   const handleGoogleSignIn = async () => {
     try {
@@ -53,8 +126,9 @@ const LoginPage = () => {
               </p>
             </div>
 
-            {/* Login Button */}
+            {/* Login Buttons */}
             <div className="space-y-4">
+              {/* Primary: Custom button using Firebase popup */}
               <button
                 onClick={handleGoogleSignIn}
                 disabled={loading}
@@ -80,12 +154,30 @@ const LoginPage = () => {
                 )}
               </button>
 
-              {/* Error Message */}
-              {(error || localError) && (
-                <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-300 text-sm font-light">
-                  {error || localError}
-                </div>
+              {/* Fallback: Google's native sign-in button (shown if popup is blocked) */}
+              {showGsiButton && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-3"
+                >
+                  <p className="text-sm text-white/50 text-center">
+                    Pop-up was blocked — use Google's sign-in below instead:
+                  </p>
+                  <div 
+                    ref={gsiButtonRef}
+                    className="flex justify-center"
+                    style={{ colorScheme: 'auto' }}
+                  />
+                </motion.div>
               )}
+
+              {/* Error Message (skip the internal POPUP_BLOCKED sentinel) */}
+              {(error && error !== 'POPUP_BLOCKED') || localError ? (
+                <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-300 text-sm font-light">
+                  {error !== 'POPUP_BLOCKED' ? error : ''}{localError}
+                </div>
+              ) : null}
             </div>
           </motion.div>
         </div>

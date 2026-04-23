@@ -1,6 +1,8 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { 
   signInWithPopup,
+  signInWithCredential,
+  GoogleAuthProvider,
   signOut as firebaseSignOut,
   onAuthStateChanged 
 } from 'firebase/auth';
@@ -87,9 +89,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Sign in with Google (Gmail only)
-  // Popup-only strategy — redirect flow is broken in modern Chrome due to
-  // third-party cookie partitioning between firebaseapp.com and vercel.app.
+  // Sign in with Google — primary method using Firebase popup
   const signInWithGoogle = async () => {
     try {
       setError(null);
@@ -103,13 +103,9 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
         console.warn('Popup blocked by browser:', error.code);
-        setError(
-          'Pop-up was blocked by your browser. Please allow pop-ups for this site:\n' +
-          'Chrome → click the 🔒 icon in the address bar → Site settings → Pop-ups → Allow'
-        );
+        setError('POPUP_BLOCKED');
         return;
       }
-      // User closed the popup themselves — not an error
       if (error.code === 'auth/popup-closed-by-user') {
         return;
       }
@@ -117,6 +113,27 @@ export const AuthProvider = ({ children }) => {
       if (!error.message?.includes('Gmail')) {
         setError(error.message);
       }
+      throw error;
+    }
+  };
+
+  // Sign in with Google — fallback via Google Identity Services (GIS)
+  // Uses signInWithCredential with an ID token from GIS.
+  // This bypasses Chrome's popup blocker because GIS handles auth natively.
+  const signInWithGoogleCredential = async (idToken) => {
+    try {
+      setError(null);
+      const credential = GoogleAuthProvider.credential(idToken);
+      const result = await signInWithCredential(auth, credential);
+      // Enforce Gmail-only rule
+      if (result?.user && !isGmailAccount(result.user.email)) {
+        await firebaseSignOut(auth);
+        setError('Only Gmail accounts are allowed. Please sign in with a @gmail.com email.');
+        throw new Error('Only Gmail accounts are allowed.');
+      }
+    } catch (error) {
+      console.error('GIS credential sign-in error:', error);
+      setError(error.message);
       throw error;
     }
   };
@@ -216,6 +233,7 @@ export const AuthProvider = ({ children }) => {
     loading,
     error,
     signInWithGoogle,
+    signInWithGoogleCredential,
     signOut,
     hasRole,
     isAdmin,
