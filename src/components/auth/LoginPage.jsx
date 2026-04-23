@@ -1,13 +1,12 @@
-import React, { useState, Suspense, lazy } from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
 import { DotShaderBackground } from '../ui/DotShaderBackground';
 
-// Lazy-load Spline AFTER auth resolves — Spline's lockdown-install.js kills global eval()
-// which blocks Firebase's getRedirectResult. Lazy loading defers that conflict.
-const SplineScene = lazy(() =>
-  import('../ui/SplineScene').then(mod => ({ default: mod.SplineScene }))
-);
+// NOTE: Spline was intentionally removed from this page.
+// Spline's lockdown-install.js runs SES (Secure EcmaScript) lockdown which
+// removes JavaScript intrinsics (eval, Function, etc.) that Firebase's
+// signInWithPopup depends on, causing auth to fail silently.
 
 const LoginPage = () => {
   const { signInWithGoogle, error } = useAuth();
@@ -91,15 +90,57 @@ const LoginPage = () => {
           </motion.div>
         </div>
 
-        {/* Right Content - 3D Robot (lazy loaded AFTER Firebase auth to avoid SES/eval conflict) */}
-        <div className="flex-1 md:w-3/5 relative hidden md:block">
-          <div className="w-full h-full">
-            <Suspense fallback={<div className="w-full h-full bg-[#0a0a0a]" />}>
-              <SplineScene 
-                scene="https://prod.spline.design/kZDDjO5HuC9GJUM2/scene.splinecode"
-                className="w-full h-full"
+        {/* Right Content - Animated geometric visual (replaces Spline 3D) */}
+        <div className="flex-1 md:w-3/5 relative hidden md:flex items-center justify-center">
+          <div className="relative w-80 h-80">
+            {/* Orbiting rings */}
+            {[0, 1, 2].map((i) => (
+              <motion.div
+                key={i}
+                className="absolute inset-0 rounded-full border border-white/10"
+                style={{ 
+                  transform: `rotateX(${60 + i * 15}deg) rotateY(${i * 30}deg)`,
+                  transformStyle: 'preserve-3d'
+                }}
+                animate={{ rotateZ: [0, 360] }}
+                transition={{ 
+                  duration: 12 + i * 4, 
+                  repeat: Infinity, 
+                  ease: 'linear' 
+                }}
               />
-            </Suspense>
+            ))}
+            {/* Center glow */}
+            <motion.div
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 rounded-full"
+              style={{
+                background: 'radial-gradient(circle, rgba(168,85,247,0.4) 0%, rgba(168,85,247,0) 70%)'
+              }}
+              animate={{ scale: [1, 1.3, 1], opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            {/* Floating particles */}
+            {[...Array(6)].map((_, i) => (
+              <motion.div
+                key={`p-${i}`}
+                className="absolute w-1.5 h-1.5 rounded-full bg-white/30"
+                style={{
+                  top: `${20 + Math.sin(i * 1.2) * 30}%`,
+                  left: `${20 + Math.cos(i * 1.2) * 30}%`,
+                }}
+                animate={{
+                  y: [0, -20, 0],
+                  x: [0, 10 * (i % 2 ? 1 : -1), 0],
+                  opacity: [0.2, 0.7, 0.2],
+                }}
+                transition={{
+                  duration: 3 + i * 0.5,
+                  repeat: Infinity,
+                  delay: i * 0.4,
+                  ease: 'easeInOut',
+                }}
+              />
+            ))}
           </div>
         </div>
       </div>
@@ -108,3 +149,4 @@ const LoginPage = () => {
 };
 
 export default LoginPage;
+
