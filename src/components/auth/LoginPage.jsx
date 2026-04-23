@@ -1,8 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import React, { useState, Suspense, lazy } from 'react';
 import { motion } from 'framer-motion';
-import { signInWithPopup } from 'firebase/auth';
 import { useAuth } from '../../contexts/AuthContext';
-import { auth, googleProvider, isGmailAccount } from '../../config/firebase';
 import { DotShaderBackground } from '../ui/DotShaderBackground';
 
 // Lazy-load Spline to defer its heavy bundle
@@ -10,103 +8,21 @@ const SplineScene = lazy(() =>
   import('../ui/SplineScene').then(mod => ({ default: mod.SplineScene }))
 );
 
-// Google OAuth Client ID (from Firebase project)
-const GOOGLE_CLIENT_ID = '292806544658-8umcn4fi8jhnk4c3i70pcqs8l8kkhi29.apps.googleusercontent.com';
-
 const LoginPage = () => {
-  const { signInWithGoogleCredential, error: authError } = useAuth();
+  const { signInWithGoogle, error } = useAuth();
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
-  const [popupBlocked, setPopupBlocked] = useState(false);
-  const gsiButtonRef = useRef(null);
-  const gsiInitialized = useRef(false);
 
-  // Initialize Google Identity Services (GIS) as fallback
-  const initGsi = useCallback(() => {
-    if (gsiInitialized.current || !window.google?.accounts?.id || !gsiButtonRef.current) return;
-    
+  const handleGoogleSignIn = async () => {
     try {
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: async (response) => {
-          try {
-            setLoading(true);
-            setLocalError('');
-            await signInWithGoogleCredential(response.credential);
-          } catch (err) {
-            setLocalError(err.message || 'Failed to sign in.');
-          } finally {
-            setLoading(false);
-          }
-        },
-        auto_select: false,
-        context: 'signin',
-      });
-
-      window.google.accounts.id.renderButton(gsiButtonRef.current, {
-        theme: 'filled_black',
-        size: 'large',
-        width: 400,
-        shape: 'rectangular',
-        text: 'continue_with',
-      });
-      gsiInitialized.current = true;
+      setLoading(true);
+      setLocalError('');
+      await signInWithGoogle();
     } catch (err) {
-      console.error('GIS init error:', err);
+      setLocalError(err.message || 'Failed to sign in. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  }, [signInWithGoogleCredential]);
-
-  // Init GIS when popup is blocked and script is ready
-  useEffect(() => {
-    if (!popupBlocked) return;
-    
-    const tryInit = () => {
-      if (window.google?.accounts?.id && gsiButtonRef.current) {
-        initGsi();
-        return true;
-      }
-      return false;
-    };
-
-    if (tryInit()) return;
-
-    const interval = setInterval(() => {
-      if (tryInit()) clearInterval(interval);
-    }, 300);
-
-    const timeout = setTimeout(() => clearInterval(interval), 8000);
-    return () => { clearInterval(interval); clearTimeout(timeout); };
-  }, [popupBlocked, initGsi]);
-
-  // Direct popup sign-in — NO state updates before window.open
-  // This is critical: React state updates can break Chrome's user-gesture
-  // tracking, causing the popup to be blocked.
-  const handleGoogleSignIn = () => {
-    // Call signInWithPopup IMMEDIATELY — no setState before this
-    signInWithPopup(auth, googleProvider)
-      .then(async (result) => {
-        if (result?.user && !isGmailAccount(result.user.email)) {
-          const { signOut: firebaseSignOut } = await import('firebase/auth');
-          await firebaseSignOut(auth);
-          setLocalError('Only Gmail accounts are allowed. Please sign in with a @gmail.com email.');
-        }
-        setLoading(false);
-      })
-      .catch((error) => {
-        setLoading(false);
-        if (error.code === 'auth/popup-blocked' || error.code === 'auth/cancelled-popup-request') {
-          console.warn('Popup blocked — showing GIS fallback');
-          setPopupBlocked(true);
-          return;
-        }
-        if (error.code === 'auth/popup-closed-by-user') return;
-        console.error('Sign in error:', error);
-        setLocalError(error.message || 'Failed to sign in.');
-      });
-
-    // Set loading AFTER the popup call, not before
-    setLoading(true);
-    setLocalError('');
   };
 
   return (
@@ -164,28 +80,10 @@ const LoginPage = () => {
                 )}
               </button>
 
-              {/* GIS fallback — only appears if popup was blocked */}
-              {popupBlocked && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  className="space-y-2 overflow-hidden"
-                >
-                  <p className="text-xs text-white/40 text-center">
-                    Pop-up blocked — try this instead:
-                  </p>
-                  <div 
-                    ref={gsiButtonRef}
-                    className="flex justify-center"
-                    style={{ colorScheme: 'auto' }}
-                  />
-                </motion.div>
-              )}
-
               {/* Error Message */}
-              {(authError && authError !== 'POPUP_BLOCKED' || localError) && (
+              {(error || localError) && (
                 <div className="p-3 bg-red-500/10 border border-red-500/30 text-red-300 text-sm font-light">
-                  {localError || authError}
+                  {error || localError}
                 </div>
               )}
             </div>

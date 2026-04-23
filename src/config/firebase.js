@@ -6,9 +6,16 @@ import { getAuth, GoogleAuthProvider } from 'firebase/auth';
 import { initializeFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 
+// In production, use the app's own domain as authDomain so that the
+// redirect sign-in flow stays same-origin (proxied via vercel.json).
+// In development, use the standard Firebase authDomain.
+const authDomain = import.meta.env.PROD
+  ? window.location.hostname
+  : import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  authDomain,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
