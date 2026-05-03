@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import './QuestionPrediction.css';
 import { motion, AnimatePresence } from 'framer-motion';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
@@ -31,6 +32,7 @@ const QuestionPrediction = () => {
   const [selectedModule, setSelectedModule] = useState('all');
   const [savedPredictions, setSavedPredictions] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activePart, setActivePart] = useState('A');
   const [semesterFilter, setSemesterFilter] = useState('all');
   
   // Phase 2: Syllabus integration and AI features
@@ -99,15 +101,15 @@ const QuestionPrediction = () => {
 
           // Save to Firestore automatically for all authenticated users
           try {
-            console.log('💾 Attempting to save prediction to Firestore...');
-            console.log('🔐 Current User:', {
+            console.log('" Attempting to save prediction to Firestore...');
+            console.log(' Current User:', {
               uid: currentUser?.uid,
               email: currentUser?.email,
               emailVerified: currentUser?.emailVerified,
               isAnonymous: currentUser?.isAnonymous
             });
-            console.log('👤 User Role:', userRole);
-            console.log('✉️ Is Gmail?', currentUser?.email?.endsWith('@gmail.com'));
+            console.log(' User Role:', userRole);
+            console.log(' Is Gmail?', currentUser?.email?.endsWith('@gmail.com'));
             
             const docRef = await addDoc(collection(db, 'questions'), {
               ...result,
@@ -115,11 +117,11 @@ const QuestionPrediction = () => {
               createdBy: currentUser?.uid || 'unknown',
               userEmail: currentUser?.email || 'unknown'
             });
-            console.log('✅ Prediction saved with ID:', docRef.id);
+            console.log(' Prediction saved with ID:', docRef.id);
             await fetchSavedPredictions();
           } catch (saveError) {
-            console.error('❌ Error saving to Firestore:', saveError);
-            console.error('📋 Error details:', {
+            console.error(' Error saving to Firestore:', saveError);
+            console.error('S Error details:', {
               code: saveError.code,
               message: saveError.message,
               name: saveError.name
@@ -148,17 +150,17 @@ const QuestionPrediction = () => {
   // TEST: Direct Firestore write
   const testFirestoreWrite = async () => {
     try {
-      console.log('🧪 Testing direct Firestore write...');
+      console.log(' Testing direct Firestore write...');
       const testDoc = await addDoc(collection(db, 'questions'), {
         test: true,
         timestamp: new Date().toISOString(),
         user: currentUser?.email
       });
-      console.log('✅ TEST PASSED! Document created:', testDoc.id);
-      alert('✅ Firebase write works! Document ID: ' + testDoc.id);
+      console.log(' TEST PASSED! Document created:', testDoc.id);
+      alert(' Firebase write works! Document ID: ' + testDoc.id);
     } catch (err) {
-      console.error('❌ TEST FAILED:', err);
-      alert('❌ Test failed: ' + err.message);
+      console.error(' TEST FAILED:', err);
+      alert(' Test failed: ' + err.message);
     }
   };
 
@@ -336,178 +338,146 @@ const handleDeletePrediction = async (predictionId) => {
   }
 };
 
+  // Helper: Animated counter
+  const AnimatedCounter = ({ value, duration = 1.5 }) => {
+    const [count, setCount] = useState(0);
+    useEffect(() => {
+      const target = parseInt(value) || 0;
+      if (target === 0) return;
+      let start = 0;
+      const step = Math.ceil(target / (duration * 60));
+      const timer = setInterval(() => {
+        start += step;
+        if (start >= target) { setCount(target); clearInterval(timer); }
+        else setCount(start);
+      }, 1000 / 60);
+      return () => clearInterval(timer);
+    }, [value, duration]);
+    return <span className="ag-counter">{count}</span>;
+  };
+
+  // Helper: Orbit Ring SVG
+  const OrbitRing = ({ size = 120 }) => (
+    <svg width={size} height={size} viewBox="0 0 120 120" className="ag-orbit-ring absolute -left-4 -top-4 opacity-30 pointer-events-none">
+      <defs>
+        <linearGradient id="orbitGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#6366f1" stopOpacity="0.6"/>
+          <stop offset="50%" stopColor="#22d3ee" stopOpacity="0.3"/>
+          <stop offset="100%" stopColor="#4ade80" stopOpacity="0.1"/>
+        </linearGradient>
+      </defs>
+      <circle cx="60" cy="60" r="52" fill="none" stroke="url(#orbitGrad)" strokeWidth="1.5" strokeDasharray="8 6"/>
+    </svg>
+  );
+
+  // Helper: get probability color class
+  const getProbClass = (p) => p > 0.7 ? 'high' : p > 0.4 ? 'medium' : 'low';
+  const getProbColor = (p) => p > 0.7 ? '#4ade80' : p > 0.4 ? '#fbbf24' : '#f87171';
+
   return (
-    <div className="min-h-screen bg-midnight relative">
-      <NoiseTexture />
-      <FloatingOrbs />
-      <div className="mesh-gradient-bg" />
+    <div className="ag-page">
       <Navbar />
-      
-      <div className="relative z-10 pt-24 pb-12 px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 pt-24 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: -30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="mb-12"
+            transition={{ type: 'spring', stiffness: 80, damping: 20 }}
+            className="mb-14"
           >
-            <h1 className="text-4xl md:text-5xl font-extrabold mb-4">
-              <span className="text-gradient">Question</span> Prediction
+            <h1 className="ag-heading text-4xl md:text-5xl font-bold mb-3 text-white">
+              Question <span style={{ color: '#6366f1' }}>Prediction</span>
             </h1>
-            <p className="text-xl text-gray-400">
-              ML-powered analysis of high-importance exam questions
+            <p className="ag-body text-base text-slate-400" style={{ maxWidth: 480 }}>
+              ML-powered analysis engine  predicting high-importance exam questions with pattern detection and frequency mapping.
             </p>
           </motion.div>
 
           {/* Upload Section (Faculty/Admin only) */}
           {hasFacultyAccess() && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: -40 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.6 }}
-              className="mb-12"
+              transition={{ type: 'spring', stiffness: 60, damping: 18, delay: 0.15 }}
+              className="mb-14"
             >
-              <Card hover={false}>
-                <h2 className="text-2xl font-bold mb-6">Upload Question Data</h2>
-                
-                {/* Subject Information */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                  <Input
-                    label="Subject Name"
-                    placeholder="e.g., Web Development"
-                    value={subjectName}
-                    onChange={(e) => setSubjectName(e.target.value)}
-                  />
-                  <Input
-                    label="Subject Code"
-                    placeholder="e.g., CS301"
-                    value={subjectCode}
-                    onChange={(e) => setSubjectCode(e.target.value)}
-                  />
-                  <Input
-                    label="Semester"
-                    type="number"
-                    placeholder="e.g., 5"
-                    value={semester}
-                    onChange={(e) => setSemester(e.target.value)}
-                  />
+              <div className="ag-card ag-gradient-border ag-levitate p-8">
+                <h2 className="ag-heading text-xl font-bold text-white mb-6 flex items-center gap-3">
+                  <span style={{ color: '#22d3ee' }}></span> Upload Question Data
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-7">
+                  {[{l:'Subject Name',p:'e.g., Web Development',v:subjectName,fn:setSubjectName},
+                    {l:'Subject Code',p:'e.g., CS301',v:subjectCode,fn:setSubjectCode},
+                    {l:'Semester',p:'e.g., 5',v:semester,fn:setSemester,t:'number'}].map(f=>(
+                    <div key={f.l}>
+                      <div className="ag-input-label">{f.l}</div>
+                      <input className="ag-input" type={f.t||'text'} placeholder={f.p} value={f.v} onChange={e=>f.fn(e.target.value)}/>
+                    </div>
+                  ))}
                 </div>
 
-                {/* File Upload */}
-                <div className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center hover:border-pink-500 transition-colors">
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    id="file-upload"
-                    disabled={loading || !subjectName.trim() || !subjectCode.trim() || !semester.trim()}
-                  />
-                  <label htmlFor="file-upload" className={`cursor-pointer ${loading || !subjectName.trim() || !subjectCode.trim() || !semester.trim() ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                    <div className="mb-4">
-                      <svg className="w-16 h-16 mx-auto text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                <div className="ag-dropzone p-10 text-center relative mb-6">
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-10">
+                    <OrbitRing size={200}/>
+                  </div>
+                  <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" id="file-upload"
+                    disabled={loading || !subjectName.trim() || !subjectCode.trim() || !semester.trim()}/>
+                  <label htmlFor="file-upload" className={`cursor-pointer block ${loading || !subjectName.trim() || !subjectCode.trim() || !semester.trim() ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                    <div className="mb-3">
+                      <svg className="w-12 h-12 mx-auto" style={{color:'#6366f1'}} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                       </svg>
                     </div>
-                    <p className="text-lg font-semibold text-white mb-2">
-                      {loading ? 'Processing...' : 'Click to upload CSV file'}
-                    </p>
-                    <p className="text-sm text-gray-400">CSV format with Question, Year, Module, Marks, Part columns</p>
+                    <p className="ag-heading text-sm font-bold text-white mb-1">{loading ? 'Processing...' : 'Drop CSV or click to upload'}</p>
+                    <p className="text-xs text-slate-500">Question, Year, Module, Marks, Part columns required</p>
                   </label>
                 </div>
 
-                {/* Phase 2: Syllabus Upload (Optional) */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    📚 Upload Syllabus (Optional - Boosts Important Topics)
-                  </label>
-                  <input
-                    type="file"
-                    accept=".json"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const reader = new FileReader();
-                        reader.onload = (event) => {
-                          try {
-                            const rawData = JSON.parse(event.target.result);
-                            console.log('📚 Raw syllabus loaded:', rawData);
-                            
-                            // Auto-parse to correct format
-                            const parsedSyllabus = parseSyllabus(rawData);
-                            console.log('✨ Parsed syllabus:', parsedSyllabus);
-                            console.log('📊 Modules in syllabus:', parsedSyllabus.modules?.length);
-                            console.log('📝 Total topics:', parsedSyllabus.modules?.reduce((sum, m) => sum + m.topics.length, 0));
-                            
-                            setSyllabus(parsedSyllabus);
-                            showSuccess('✅ Syllabus loaded successfully!');
-                          } catch (err) {
-                            console.error('❌ Syllabus parse error:', err);
-                            showError('❌ Invalid syllabus JSON format');
-                          }
-                        };
-                        reader.readAsText(file);
-                      }
-                    }}
-                    className="w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-pink-500/20 file:text-pink-400 hover:file:bg-pink-500/30 cursor-pointer"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">JSON file with module topics and keywords</p>
+                <div className="mb-5">
+                  <div className="ag-input-label">S Syllabus (Optional  JSON)</div>
+                  <input type="file" accept=".json" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        try {
+                          const rawData = JSON.parse(event.target.result);
+                          const parsedSyllabus = parseSyllabus(rawData);
+                          setSyllabus(parsedSyllabus);
+                          showSuccess('Syllabus loaded!');
+                        } catch (err) { showError('Invalid syllabus JSON'); }
+                      };
+                      reader.readAsText(file);
+                    }
+                  }} className="ag-input text-sm file:mr-3 file:py-1.5 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-500/15 file:text-indigo-400 hover:file:bg-indigo-500/25 cursor-pointer"/>
                 </div>
 
-                {/* Phase 2: ML Controls */}
-                <div className="flex flex-wrap items-center gap-6 p-4 bg-gray-800/30 rounded-lg">
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={aiEnabled}
-                      onChange={(e) => setAiEnabled(e.target.checked)}
-                      className="w-4 h-4 text-pink-500 bg-gray-800 border-gray-700 rounded focus:ring-2 focus:ring-pink-500 cursor-pointer"
-                    />
-                    <span className="text-sm text-gray-300 group-hover:text-white transition">
-                      🤖 Enable AI Clustering
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={showMLInsights}
-                      onChange={(e) => setShowMLInsights(e.target.checked)}
-                      className="w-4 h-4 text-pink-500 bg-gray-800 border-gray-700 rounded focus:ring-2 focus:ring-pink-500 cursor-pointer"
-                    />
-                    <span className="text-sm text-gray-300 group-hover:text-white transition">
-                      📊 Show ML Insights
-                    </span>
-                  </label>
-                  {syllabus && (
-                    <span className="text-xs bg-green-500/20 text-green-400 px-3 py-1 rounded-full">
-                      ✓ Syllabus Loaded
-                    </span>
-                  )}
+                <div className="flex flex-wrap items-center gap-5 p-4 rounded-xl" style={{background:'rgba(99,102,241,0.04)', border:'1px solid rgba(99,102,241,0.08)'}}>
+                  {[{c:aiEnabled,s:setAiEnabled,t:' AI Clustering'},{c:showMLInsights,s:setShowMLInsights,t:'S ML Insights'}].map(x=>(
+                    <label key={x.t} className="flex items-center gap-2 cursor-pointer text-xs text-slate-400 hover:text-slate-200 transition">
+                      <input type="checkbox" checked={x.c} onChange={e=>x.s(e.target.checked)} className="w-3.5 h-3.5 rounded accent-indigo-500"/>
+                      <span>{x.t}</span>
+                    </label>
+                  ))}
+                  {syllabus && <span className="text-xs px-3 py-1 rounded-full" style={{background:'rgba(74,222,128,0.1)',color:'#4ade80',border:'1px solid rgba(74,222,128,0.15)'}}>S Syllabus</span>}
                 </div>
 
-                {/* Download Template Button */}
-                <div className="mt-6 flex justify-between items-center">
-                  <button
-                    onClick={downloadTemplate}
-                    className="text-pink-400 hover:text-pink-300 underline text-sm"
-                  >
-                    📥 Download CSV Template
-                  </button>
+                <div className="mt-5 flex justify-between items-center">
+                  <button onClick={downloadTemplate} className="text-xs text-indigo-400 hover:text-indigo-300 transition">S Download Template</button>
                   {loading && (
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-pink-500"></div>
-                      <span>Processing predictions...</span>
+                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                      <motion.div animate={{rotate:360}} transition={{repeat:Infinity,duration:1,ease:'linear'}} className="w-4 h-4 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full"/>
+                      Processing...
                     </div>
                   )}
                 </div>
 
-                {/* Error Display */}
                 {error && (
-                  <div className="mt-6 p-4 bg-red-500/10 border border-red-500 rounded-lg">
-                    <p className="text-red-500">⚠️ {error}</p>
+                  <div className="mt-5 p-3 rounded-xl text-sm" style={{background:'rgba(239,68,68,0.06)',border:'1px solid rgba(239,68,68,0.15)',color:'#fca5a5'}}>
+                     {error}
                   </div>
                 )}
-              </Card>
+              </div>
             </motion.div>
           )}
 
@@ -515,436 +485,225 @@ const handleDeletePrediction = async (predictionId) => {
           {predictions && (
             <>
               {/* Back Button */}
-              <button
+              <motion.button initial={{opacity:0,x:-20}} animate={{opacity:1,x:0}} transition={{type:'spring',stiffness:100}}
                 onClick={() => setPredictions(null)}
-                className="flex items-center gap-2 px-4 py-2 mb-6 rounded-lg bg-gray-800/50 hover:bg-gray-700 transition-colors text-gray-300"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Predictions List
-              </button>
+                className="ag-btn flex items-center gap-2 mb-8">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+                Back
+              </motion.button>
 
-              {/* Module Filter */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4, duration: 0.6 }}
-                className="mb-8"
-              >
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              {/* Header + Controls */}
+              <motion.div initial={{opacity:0,y:-20}} animate={{opacity:1,y:0}} transition={{type:'spring',stiffness:70,delay:0.1}} className="mb-10">
+                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                   <div>
-                    <h2 className="text-2xl font-bold">{predictions.subjectName}</h2>
-                    <p className="text-gray-400 text-sm mt-1">
-                      {predictions.subjectCode} • Semester {predictions.semester}
-                    </p>
+                    <h2 className="ag-heading text-2xl font-bold text-white">{predictions.subjectName}</h2>
+                    <p className="text-sm text-slate-500 mt-1 ag-body">{predictions.subjectCode} · Semester {predictions.semester}</p>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex gap-2">
-                      <GradientButton onClick={exportQuestionPaperAsPDF} size="sm">
-                        📄 Download PDF
-                      </GradientButton>
-                      <button
-                        onClick={exportQuestionPaper}
-                        className="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors text-sm font-semibold"
-                      >
-                        📝 Export Text
-                      </button>
-                      {hasFacultyAccess() && (
-                        <>
-                          <button
-                            onClick={exportAsJSON}
-                            className="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors text-sm font-semibold"
-                          >
-                            📊 Export JSON
-                          </button>
-                          <button
-                            onClick={() => handleDeletePrediction(predictions.id)}
-                            className="px-4 py-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500 transition-colors text-sm font-semibold"
-                          >
-                            🗑️ Delete
-                          </button>
-                        </>
-                      )}
-                    </div>
-                    <select
-                    value={selectedModule}
-                    onChange={(e) => setSelectedModule(e.target.value)}
-                      className="px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-                    >
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button onClick={exportQuestionPaperAsPDF} className="ag-btn-primary ag-btn">PDF</button>
+                    <button onClick={exportQuestionPaper} className="ag-btn">Text</button>
+                    {hasFacultyAccess() && (
+                      <>
+                        <button onClick={exportAsJSON} className="ag-btn">JSON</button>
+                        <button onClick={() => handleDeletePrediction(predictions.id)} className="ag-btn ag-btn-danger">Delete</button>
+                      </>
+                    )}
+                    <select value={selectedModule} onChange={e=>setSelectedModule(e.target.value)} className="ag-input text-sm" style={{width:'auto',minWidth:140}}>
                       <option value="all">All Modules</option>
-                      {getModules().map(m => (
-                        <option key={m} value={m}>Module {m}</option>
-                      ))}
+                      {getModules().map(m => <option key={m} value={m}>Module {m}</option>)}
                     </select>
+                  </div>
+                </div>
+
+                {/* Part A / B Pill Toggle */}
+                <div className="mt-6">
+                  <div className="ag-pill relative">
+                    <motion.div className="absolute top-1 bottom-1 rounded-full" style={{background:'linear-gradient(135deg,#6366f1,#4f46e5)',width:'calc(50% - 4px)',zIndex:1}}
+                      animate={{x: activePart === 'A' ? 4 : 'calc(100% + 4px)'}} transition={{type:'spring',stiffness:300,damping:30}}/>
+                    <button className={`ag-pill-btn ${activePart==='A'?'ag-pill-btn--active':''}`} onClick={()=>setActivePart('A')}>Part A</button>
+                    <button className={`ag-pill-btn ${activePart==='B'?'ag-pill-btn--active':''}`} onClick={()=>setActivePart('B')}>Part B</button>
                   </div>
                 </div>
               </motion.div>
 
-              {/* Part A Predictions */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.5, duration: 0.6 }}
-                className="mb-8"
-              >
-                <Card hover={false}>
-                  <h3 className="text-xl font-semibold mb-5 flex items-center gap-2 text-white border-b border-slate-700/50 pb-4">
-                    Part A
-                    <span className="text-gray-400 text-sm font-normal">(Compulsory 3-mark questions)</span>
-                  </h3>
-                  
-                  <div className="space-y-6">
-                    {filteredPredictions?.partA && Object.entries(filteredPredictions.partA).map(([module, questions]) => (
-                      <div key={module} className="border-l-2 border-slate-600 pl-5">
-                        <h4 className="text-base font-semibold mb-4 text-slate-300">{module}</h4>
-                        <div className="space-y-3">
-                          {questions.map((q, idx) => (
-                            <div key={idx} className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/30">
-                              <div className="flex items-start gap-3">
-                                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-slate-700/60 flex items-center justify-center mt-0.5">
-                                  <span className="text-slate-300 font-semibold text-xs">{idx + 1}</span>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-slate-100 font-medium mb-2.5 leading-relaxed break-words whitespace-normal text-sm">
-                                    {q.question}
-                                  </p>
-                                  
-                                  {/* Syllabus Topics */}
-                                  {q.syllabus_topics && q.syllabus_topics.length > 0 && (
-                                    <div className="flex flex-wrap gap-1.5 mb-2.5">
-                                      <span className="text-xs text-slate-400 font-medium">Focus:</span>
-                                      {q.syllabus_topics.map((topic, topicIdx) => (
-                                        <span
-                                          key={topicIdx}
-                                          className="px-2 py-0.5 bg-slate-700/50 text-slate-300 rounded text-xs border border-slate-600/40"
-                                        >
-                                          {topic}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  )}
-                                  
-                                  <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                                    <span>Prob: {Math.round(q.probability * 100)}%</span>
-                                    <span>Freq: {q.frequency}x</span>
-                                    <span>{q.marks} marks</span>
-                                  </div>
-                                  
-                                  {/* Phase 2: ML Insights */}
-                                  {showMLInsights && <MLInsights question={q} />}
-                                </div>
-                                <div className={`flex-shrink-0 px-2.5 py-0.5 rounded text-xs font-medium ${
-                                  q.probability > 0.7 ? 'bg-slate-700 text-red-300' :
-                                  q.probability > 0.5 ? 'bg-slate-700 text-amber-300' :
-                                  'bg-slate-700 text-slate-400'
-                                }`}>
-                                  {q.probability > 0.7 ? 'High' : q.probability > 0.5 ? 'Med' : 'Low'}
-                                </div>
+              {/* AG Question Cards with Pill Toggle */}
+              {(() => {
+                const QCard = ({ q, idx, delay = 0 }) => (
+                  <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:delay+idx*0.05,type:'spring',stiffness:100}}
+                    className="ag-card p-4 flex gap-3 items-stretch" style={{marginBottom:10}}>
+                    <div className={`ag-glow-bar ag-glow-bar--${getProbClass(q.probability)}`}/>
+                    <div className="flex-1 min-w-0">
+                      <p className="ag-body text-sm text-slate-100 font-medium leading-relaxed mb-2 break-words">{q.question}</p>
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <span className="ag-freq-badge">{q.frequency}x</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-md font-semibold ${q.difficulty?.difficulty==='EASY'?'ag-chip-easy':q.difficulty?.difficulty==='HARD'?'ag-chip-hard':'ag-chip-medium'}`}>
+                          {q.difficulty?.difficulty || 'MEDIUM'}
+                        </span>
+                        {q.marks && <span className="text-xs text-slate-500">{q.marks}m</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="ag-prob-bar-track flex-1">
+                          <motion.div className="ag-prob-bar-fill" initial={{width:0}} animate={{width:`${Math.round(q.probability*100)}%`}}
+                            transition={{duration:1,delay:delay+idx*0.05+0.3}} style={{background:getProbColor(q.probability)}}/>
+                        </div>
+                        <span className="ag-counter text-xs" style={{color:getProbColor(q.probability),minWidth:32,textAlign:'right'}}>{Math.round(q.probability*100)}%</span>
+                      </div>
+                      {showMLInsights && <MLInsights question={q} compact/>}
+                    </div>
+                  </motion.div>
+                );
+                return (
+                  <AnimatePresence mode="wait">
+                    {activePart === 'A' ? (
+                      <motion.div key="partA" initial={{opacity:0,x:-30}} animate={{opacity:1,x:0}} exit={{opacity:0,x:30}} transition={{duration:0.3}} className="mb-10">
+                        {filteredPredictions?.partA && Object.entries(filteredPredictions.partA).map(([module, questions], mIdx) => {
+                          const modNum = module.replace('Module ','');
+                          return (
+                            <div key={module} className="mb-10">
+                              <div className="ag-module-header relative mb-5">
+                                <OrbitRing size={80}/>
+                                <span className="ag-module-num-bg">{modNum}</span>
+                                <h3 className="ag-heading text-lg font-bold text-white relative z-10">{module}</h3>
+                                <p className="text-xs text-slate-500 relative z-10">Compulsory · 3 marks each</p>
                               </div>
+                              {questions.map((q,idx) => <QCard key={idx} q={q} idx={idx} delay={mIdx*0.15}/>)}
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Card>
-              </motion.div>
-
-              {/* Part B Predictions */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6, duration: 0.6 }}
-                className="mb-8"
-              >
-                <Card hover={false}>
-                  <h3 className="text-xl font-semibold mb-5 flex items-center gap-2 text-white border-b border-slate-700/50 pb-4">
-                    Part B
-                    <span className="text-gray-400 text-sm font-normal">(14 marks — Answer any TWO questions)</span>
-                  </h3>
-                  
-                  <div className="space-y-6">
-                    {filteredPredictions?.partB && Object.entries(filteredPredictions.partB).map(([module, data]) => (
-                      <div key={module} className="border-l-2 border-slate-600 pl-5">
-                        <h4 className="text-base font-semibold mb-3 text-slate-300">
-                          {module}
-                        </h4>
-                        
-                        {/* Set A */}
-                        <div className="mb-5">
-                          <p className="text-xs text-slate-500 mb-3 flex items-center gap-2">
-                            <span className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-xs font-semibold">SET A</span>
-                            {data.setA?.totalMarks || 0} marks total
-                          </p>
-                          <div className="space-y-3">
-                            {data.setA?.questions && data.setA.questions.map((q, idx) => (
-                              <div key={idx} className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/30">
-                                <div className="flex items-start gap-3">
-                                  <div className="flex-shrink-0">
-                                    <span className="inline-block bg-slate-700 text-slate-200 px-2.5 py-0.5 rounded text-xs font-semibold">
-                                      {q.marks}m
-                                    </span>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-slate-100 font-medium mb-2.5 leading-relaxed break-words whitespace-normal text-sm">
-                                      {q.question}
-                                    </p>
-                                    
-                                    {/* Syllabus Topics */}
-                                    {q.syllabus_topics && q.syllabus_topics.length > 0 && (
-                                      <div className="flex flex-wrap gap-1.5 mb-2.5">
-                                        <span className="text-xs text-slate-400 font-medium">Focus:</span>
-                                        {q.syllabus_topics.map((topic, topicIdx) => (
-                                          <span
-                                            key={topicIdx}
-                                            className="px-2 py-0.5 bg-slate-700/50 text-slate-300 rounded text-xs border border-slate-600/40"
-                                          >
-                                            {topic}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-                                    
-                                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                                      <span>Prob: {Math.round(q.probability * 100)}%</span>
-                                      <span>Freq: {q.frequency}x</span>
-                                    </div>
-                                    
-                                    {/* Phase 2: ML Insights */}
-                                    {showMLInsights && <MLInsights question={q} />}
-                                  </div>
-                                </div>
+                          );
+                        })}
+                      </motion.div>
+                    ) : (
+                      <motion.div key="partB" initial={{opacity:0,x:30}} animate={{opacity:1,x:0}} exit={{opacity:0,x:-30}} transition={{duration:0.3}} className="mb-10">
+                        {filteredPredictions?.partB && Object.entries(filteredPredictions.partB).map(([module, data], mIdx) => {
+                          const modNum = module.replace('Module ','');
+                          return (
+                            <div key={module} className="mb-10">
+                              <div className="ag-module-header relative mb-5">
+                                <OrbitRing size={80}/>
+                                <span className="ag-module-num-bg">{modNum}</span>
+                                <h3 className="ag-heading text-lg font-bold text-white relative z-10">{module}</h3>
+                                <p className="text-xs text-slate-500 relative z-10">14 marks · Choose Set A or B</p>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* OR Divider */}
-                        <div className="flex items-center gap-3 my-4">
-                          <div className="flex-1 h-px bg-slate-700/60"></div>
-                          <span className="text-slate-500 font-semibold text-xs tracking-widest">OR</span>
-                          <div className="flex-1 h-px bg-slate-700/60"></div>
-                        </div>
-
-                        {/* Set B */}
-                        <div>
-                          <p className="text-xs text-slate-500 mb-3 flex items-center gap-2">
-                            <span className="bg-slate-700 text-slate-300 px-2 py-0.5 rounded text-xs font-semibold">SET B</span>
-                            {data.setB?.totalMarks || 0} marks total
-                          </p>
-                          <div className="space-y-3">
-                            {data.setB?.questions && data.setB.questions.map((q, idx) => (
-                              <div key={idx} className="bg-slate-800/40 rounded-lg p-4 border border-slate-700/30">
-                                <div className="flex items-start gap-3">
-                                  <div className="flex-shrink-0">
-                                    <span className="inline-block bg-slate-700 text-slate-200 px-2.5 py-0.5 rounded text-xs font-semibold">
-                                      {q.marks}m
-                                    </span>
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="text-slate-100 font-medium mb-2.5 leading-relaxed break-words whitespace-normal text-sm">
-                                      {q.question}
-                                    </p>
-                                    
-                                    {/* Syllabus Topics */}
-                                    {q.syllabus_topics && q.syllabus_topics.length > 0 && (
-                                      <div className="flex flex-wrap gap-1.5 mb-2.5">
-                                        <span className="text-xs text-slate-400 font-medium">Focus:</span>
-                                        {q.syllabus_topics.map((topic, topicIdx) => (
-                                          <span
-                                            key={topicIdx}
-                                            className="px-2 py-0.5 bg-slate-700/50 text-slate-300 rounded text-xs border border-slate-600/40"
-                                          >
-                                            {topic}
-                                          </span>
-                                        ))}
-                                      </div>
-                                    )}
-                                    
-                                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                                      <span>Prob: {Math.round(q.probability * 100)}%</span>
-                                      <span>Freq: {q.frequency}x</span>
-                                    </div>
-                                    
-                                    {/* Phase 2: ML Insights */}
-                                    {showMLInsights && <MLInsights question={q} />}
-                                  </div>
-                                </div>
+                              <div className="text-xs text-slate-500 mb-2 flex items-center gap-2">
+                                <span className="ag-freq-badge" style={{background:'rgba(34,211,238,0.1)',color:'#22d3ee',borderColor:'rgba(34,211,238,0.2)'}}>SET A</span>
+                                {data.setA?.totalMarks || 0} marks
                               </div>
-                            ))}
-                          </div>
-                        </div>
+                              {data.setA?.questions?.map((q,idx) => <QCard key={`a${idx}`} q={q} idx={idx} delay={mIdx*0.15}/>)}
+                              <div className="flex items-center gap-3 my-4">
+                                <div className="flex-1 h-px" style={{background:'rgba(99,102,241,0.15)'}}/>
+                                <span className="ag-heading text-xs text-slate-600 tracking-widest">OR</span>
+                                <div className="flex-1 h-px" style={{background:'rgba(99,102,241,0.15)'}}/>
+                              </div>
+                              <div className="text-xs text-slate-500 mb-2 flex items-center gap-2">
+                                <span className="ag-freq-badge" style={{background:'rgba(74,222,128,0.1)',color:'#4ade80',borderColor:'rgba(74,222,128,0.2)'}}>SET B</span>
+                                {data.setB?.totalMarks || 0} marks
+                              </div>
+                              {data.setB?.questions?.map((q,idx) => <QCard key={`b${idx}`} q={q} idx={idx} delay={mIdx*0.15+0.2}/>)}
+                            </div>
+                          );
+                        })}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                );
+              })()}
 
-                        <p className="mt-4 text-slate-600 text-xs italic">Choose either SET A or SET B (both sum to 14 marks)</p>
+              {/* Stats  4 Floating Cards */}
+              <motion.div initial={{opacity:0,y:30}} animate={{opacity:1,y:0}} transition={{delay:0.4,type:'spring',stiffness:60}} className="mb-10">
+                <h3 className="ag-heading text-lg font-bold text-white mb-5">Analysis Stats</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    {label:'Total Questions',value:predictions.stats.totalQuestions,color:'#6366f1'},
+                    {label:'Part A',value:predictions.stats.partAQuestions,color:'#22d3ee'},
+                    {label:'Part B',value:predictions.stats.partBQuestions,color:'#4ade80'},
+                    {label:'Modules',value:predictions.stats.modules,color:'#fbbf24'}
+                  ].map((s,i) => (
+                    <motion.div key={s.label} initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.5+i*0.1}} className="ag-stat-card">
+                      <div className="ag-stat-card-inner ag-card ag-gradient-border p-5 text-center">
+                        <p className="ag-counter text-3xl font-bold mb-1" style={{color:s.color}}><AnimatedCounter value={s.value}/></p>
+                        <p className="ag-body text-xs text-slate-500">{s.label}</p>
                       </div>
-                    ))}
-                  </div>
-                </Card>
-              </motion.div>
-
-              {/* Statistics Summary */}
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7, duration: 0.6 }}
-              >
-                <Card hover={false}>
-                  <h3 className="text-2xl font-bold mb-6">Prediction Statistics</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    <div className="text-center">
-                      <p className="text-4xl font-extrabold text-gradient mb-2">{predictions.stats.totalQuestions}</p>
-                      <p className="text-gray-400">Total Questions</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-4xl font-extrabold text-gradient mb-2">{predictions.stats.partAQuestions}</p>
-                      <p className="text-gray-400">Part A Questions</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-4xl font-extrabold text-gradient mb-2">{predictions.stats.partBQuestions}</p>
-                      <p className="text-gray-400">Part B Questions</p>
-                    </div>
-                    <div className="text-center">
-                      <p className="text-4xl font-extrabold text-gradient mb-2">{predictions.stats.modules}</p>
-                      <p className="text-gray-400">Modules</p>
-                    </div>
-                  </div>
-                </Card>
+                    </motion.div>
+                  ))}
+                </div>
               </motion.div>
             </>
           )}
 
-          {/* Student Search Section */}
+          {/* Student Search */}
           {!hasFacultyAccess() && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.6 }}
-              className="mb-12"
-            >
-              <Card hover={false}>
-                <h2 className="text-2xl font-bold mb-6">Search Question Predictions</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                  <Input
-                    label="Search by Subject Name"
-                    placeholder="e.g., Web Development"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
+            <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.2,type:'spring',stiffness:80}} className="mb-12">
+              <div className="ag-card p-6">
+                <h2 className="ag-heading text-xl font-bold text-white mb-5">Search Predictions</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">Filter by Semester</label>
-                    <select
-                      value={semesterFilter}
-                      onChange={(e) => setSemesterFilter(e.target.value)}
-                      className="w-full px-4 py-3 rounded-lg bg-gray-800 border border-gray-700 text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
-                    >
+                    <div className="ag-input-label">Subject Name</div>
+                    <input className="ag-input" placeholder="e.g., Web Development" value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}/>
+                  </div>
+                  <div>
+                    <div className="ag-input-label">Semester</div>
+                    <select value={semesterFilter} onChange={e=>setSemesterFilter(e.target.value)} className="ag-input">
                       <option value="all">All Semesters</option>
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map(sem => (
-                        <option key={sem} value={sem}>Semester {sem}</option>
-                      ))}
+                      {[1,2,3,4,5,6,7,8].map(s=><option key={s} value={s}>Semester {s}</option>)}
                     </select>
                   </div>
                 </div>
-              </Card>
+              </div>
             </motion.div>
           )}
 
-          {/* Saved Predictions List */}
+          {/* Saved Predictions  Horizontal Scroll Cards */}
           {!predictions && savedPredictions.filter(pred => {
-            const matchesSearch = searchQuery === '' || 
-              pred.subjectName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              pred.subjectCode?.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesSearch = searchQuery === '' || pred.subjectName?.toLowerCase().includes(searchQuery.toLowerCase()) || pred.subjectCode?.toLowerCase().includes(searchQuery.toLowerCase());
             const matchesSemester = semesterFilter === 'all' || pred.semester === semesterFilter;
             return matchesSearch && matchesSemester;
           }).length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.6 }}
-            >
-              <Card hover={false}>
-                <h2 className="text-2xl font-bold mb-6">
-                  {hasFacultyAccess() ? 'Previously Generated Predictions' : 'Available Predictions'}
-                </h2>
-                <div className="space-y-4">
-                  {savedPredictions.filter(pred => {
-                    const matchesSearch = searchQuery === '' || 
-                      pred.subjectName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      pred.subjectCode?.toLowerCase().includes(searchQuery.toLowerCase());
-                    const matchesSemester = semesterFilter === 'all' || pred.semester === semesterFilter;
-                    return matchesSearch && matchesSemester;
-                  }).map((pred) => (
-                    <div
-                      key={pred.id}
-                      className="p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex-1" onClick={() => setPredictions(pred)}>
-                          <div className="flex items-center gap-3 mb-2">
-                            <h3 className="text-lg font-semibold text-white">{pred.subjectName}</h3>
-                            <span className="px-3 py-1 rounded-full bg-pink-500/20 text-pink-400 text-xs font-semibold">
-                              {pred.subjectCode || 'N/A'}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-gray-400">
-                            <span>📚 Semester {pred.semester || 'N/A'}</span>
-                            <span>📊 {pred.stats.modules} modules</span>
-                            <span>📝 {pred.stats.totalQuestions} questions</span>
-                            <span>📅 {new Date(pred.generatedAt).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {hasFacultyAccess() && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeletePrediction(pred.id);
-                              }}
-                              className="p-2 rounded-lg bg-red-500/10 text-red-500 hover:bg-red-500/20 border border-red-500/50 transition-colors"
-                              title="Delete prediction"
-                            >
-                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          )}
-                          <div className="text-pink-400" onClick={() => setPredictions(pred)}>
-                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </div>
-                        </div>
+            <motion.div initial={{opacity:0,y:20}} animate={{opacity:1,y:0}} transition={{delay:0.3,type:'spring',stiffness:70}}>
+              <h2 className="ag-heading text-xl font-bold text-white mb-5">
+                {hasFacultyAccess() ? 'Previous Predictions' : 'Available Predictions'}
+              </h2>
+              <div className="ag-saved-scroll">
+                {savedPredictions.filter(pred => {
+                  const matchesSearch = searchQuery === '' || pred.subjectName?.toLowerCase().includes(searchQuery.toLowerCase()) || pred.subjectCode?.toLowerCase().includes(searchQuery.toLowerCase());
+                  const matchesSemester = semesterFilter === 'all' || pred.semester === semesterFilter;
+                  return matchesSearch && matchesSemester;
+                }).map((pred) => (
+                  <motion.div key={pred.id} whileHover={{y:-4}} className="ag-saved-card ag-card cursor-pointer" onClick={()=>setPredictions(pred)}>
+                    <div className="ag-saved-card-gradient"/>
+                    <div className="p-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="ag-heading text-sm font-bold text-white truncate">{pred.subjectName}</h3>
+                        {hasFacultyAccess() && (
+                          <button onClick={e=>{e.stopPropagation();handleDeletePrediction(pred.id);}} className="text-red-400 hover:text-red-300 p-1 rounded transition" title="Delete">
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                          </button>
+                        )}
+                      </div>
+                      <span className="ag-freq-badge mb-3 inline-block">{pred.subjectCode || 'N/A'}</span>
+                      <div className="space-y-1 text-xs text-slate-500 ag-body">
+                        <div>Sem {pred.semester || '?'}  {pred.stats?.modules || 0} modules</div>
+                        <div>{pred.stats?.totalQuestions || 0} questions</div>
+                        <div>{pred.generatedAt ? new Date(pred.generatedAt).toLocaleDateString() : ''}</div>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </Card>
+                  </motion.div>
+                ))}
+              </div>
             </motion.div>
           )}
 
           {/* Empty State */}
           {!predictions && savedPredictions.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.6 }}
-            >
-              <Card hover={false}>
-                <div className="text-center py-12">
-                  <div className="text-6xl mb-4">📊</div>
-                  <h2 className="text-2xl font-bold mb-2">No Predictions Yet</h2>
-                  <p className="text-gray-400 mb-6">
-                    {hasFacultyAccess() 
-                      ? 'Upload a CSV file with past exam questions to generate predictions.'
-                      : 'Predictions will appear here once faculty uploads question data.'}
-                  </p>
-                  {hasFacultyAccess() && (
-                    <GradientButton onClick={downloadTemplate}>
-                      📥 Download CSV Template
-                    </GradientButton>
-                  )}
-                </div>
-              </Card>
+            <motion.div initial={{opacity:0,y:30}} animate={{opacity:1,y:0}} transition={{delay:0.3,type:'spring',stiffness:60}}>
+              <div className="ag-card ag-gradient-border p-12 text-center">
+                <div className="text-5xl mb-4 opacity-40"></div>
+                <h2 className="ag-heading text-xl font-bold text-white mb-2">No Predictions Yet</h2>
+                <p className="ag-body text-sm text-slate-500 mb-6 max-w-md mx-auto">
+                  {hasFacultyAccess() ? 'Upload a CSV file with past exam questions to generate ML-powered predictions.' : 'Predictions will appear here once faculty uploads question data.'}
+                </p>
+                {hasFacultyAccess() && (
+                  <button onClick={downloadTemplate} className="ag-btn ag-btn-primary">x Download CSV Template</button>
+                )}
+              </div>
             </motion.div>
           )}
         </div>
