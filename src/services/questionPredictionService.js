@@ -825,14 +825,14 @@ export const calculatePartAImportance = (questions, currentYear = new Date().get
   // Calculate TF-IDF for semantic similarity
   const idf = calculateIDF(questions);
 
-  // Now deduplicate for unique predictions (keep one instance per year/module)
+  // Deduplicate by clean_question text ONLY — same question from different years
+  // must NOT produce two entries (that's the root cause of the duplicate bug).
   const seen = new Set();
   const uniqueQuestions = [];
-  
+
   questions.forEach(q => {
-    const uniqueKey = `${q.clean_question}_${q.Year}_${q.Module}`;
-    if (!seen.has(uniqueKey)) {
-      seen.add(uniqueKey);
+    if (!seen.has(q.clean_question)) {
+      seen.add(q.clean_question);
       uniqueQuestions.push(q);
     }
   });
@@ -899,14 +899,14 @@ export const calculatePartBImportance = (questions, currentYear = new Date().get
   // Find most recent year for scoring
   const recentYear = Math.max(...questions.map(q => parseInt(q.Year) || 0));
 
-  // Deduplicate keeping one instance per year/module
+  // Deduplicate by clean_question text ONLY — same question from different years
+  // must NOT produce two entries (root cause of the duplicate bug).
   const seen = new Set();
   const uniqueQuestions = [];
-  
+
   questions.forEach(q => {
-    const uniqueKey = `${q.clean_question}_${q.Year}_${q.Module}`;
-    if (!seen.has(uniqueKey)) {
-      seen.add(uniqueKey);
+    if (!seen.has(q.clean_question)) {
+      seen.add(q.clean_question);
       uniqueQuestions.push(q);
     }
   });
@@ -953,7 +953,7 @@ export const calculatePartBImportance = (questions, currentYear = new Date().get
  */
 export const predictPartA = (questions) => {
   const modules = {};
-  
+
   // Group by module
   questions.forEach(q => {
     const module = q.Module;
@@ -961,11 +961,21 @@ export const predictPartA = (questions) => {
     modules[module].push(q);
   });
 
-  // Get top 4 per module (increased from 2 for more variety)
+  // Get top 4 per module — deduplicate by clean_question BEFORE slicing
   const predictions = {};
   Object.keys(modules).sort().forEach(module => {
     const sorted = modules[module].sort((a, b) => b.probability - a.probability);
-    predictions[`Module ${module}`] = sorted.slice(0, 4).map(q => ({
+
+    // Keep only the first occurrence of each unique clean_question text
+    const seenText = new Set();
+    const deduped = sorted.filter(q => {
+      const key = q.clean_question || (q.Question || '').toLowerCase().trim();
+      if (seenText.has(key)) return false;
+      seenText.add(key);
+      return true;
+    });
+
+    predictions[`Module ${module}`] = deduped.slice(0, 4).map(q => ({
       question: q.Question,
       probability: q.probability,
       frequency: q.frequency,
@@ -1368,8 +1378,20 @@ export const generatePredictions = async (csvText, subjectName, syllabus = null,
     const sortedPartA = partAEnhanced.sort((a, b) => b.probability - a.probability);
     const sortedPartB = partBEnhanced.sort((a, b) => b.probability - a.probability);
 
-    const balancedPartA = balanceModuleCoverage(sortedPartA, 40);  // Increased from 20
-    const balancedPartB = balanceModuleCoverage(sortedPartB, 30);  // Increased from 10
+    // Global dedup pass AFTER balanceModuleCoverage — removes any question whose
+    // clean_question already appeared in an earlier module's slot.
+    const globalDedupPass = (list) => {
+      const globalSeen = new Set();
+      return list.filter(q => {
+        const key = q.clean_question || (q.Question || '').toLowerCase().replace(/[^a-z\s]/g, '').trim();
+        if (globalSeen.has(key)) return false;
+        globalSeen.add(key);
+        return true;
+      });
+    };
+
+    const balancedPartA = globalDedupPass(balanceModuleCoverage(sortedPartA, 40));  // Increased from 20
+    const balancedPartB = globalDedupPass(balanceModuleCoverage(sortedPartB, 30));  // Increased from 10
 
     // 7. Group by module (using existing predictPartA/B format)
     const partAByModule = {};
@@ -1392,8 +1414,13 @@ export const generatePredictions = async (csvText, subjectName, syllabus = null,
     });
     
     // Helper function to find best combination summing to target marks (14-19 acceptable)
+    // usedQuestions is a Set of clean_question strings (not raw Question text) so that
+    // minor punctuation variants of the same question are also excluded.
     const findBestCombination = (questions, usedQuestions = new Set(), preferredMarks = 14) => {
-      const available = questions.filter(q => !usedQuestions.has(q.Question));
+      const available = questions.filter(q => {
+        const key = q.clean_question || (q.Question || '').toLowerCase().replace(/[^a-z\s]/g, '').trim();
+        return !usedQuestions.has(key);
+      });
       if (available.length === 0) return { questions: [], totalMarks: 0 };
       
       let bestCombo = { questions: [], totalMarks: 0, score: -Infinity };
@@ -1460,9 +1487,12 @@ export const generatePredictions = async (csvText, subjectName, syllabus = null,
       // Set A: Best combination (prioritize exactly 14 marks)
       const setA = findBestCombination(sorted, new Set(), 14);
       console.log(`✅ Set A: ${setA.totalMarks} marks, ${setA.questions.length} questions`);
-      
-      // Set B: Best combination EXCLUDING Set A questions (ensures different questions!)
-      const usedInA = new Set(setA.questions.map(q => q.Question));
+
+      // Set B: Best combination EXCLUDING Set A questions.
+      // Track by clean_question so punctuation variants of the same question are also excluded.
+      const usedInA = new Set(
+        setA.questions.map(q => q.clean_question || (q.Question || '').toLowerCase().replace(/[^a-z\s]/g, '').trim())
+      );
       const setB = findBestCombination(sorted, usedInA, 14);
       
       if (setB.questions.length > 0) {
